@@ -331,3 +331,53 @@ def test_one_booking_per_call_blocks_draft_changes(db, clock):
         with pytest.raises(DomainError, match="NOT_BOOKABLE"):
             operation()
     assert confirm_booking(db, call_id, token)[0]["appointment"] == appointment
+
+
+def test_ten_distinct_members_compete_for_same_slot(db, clock):
+    with db.transaction() as conn:
+        original = conn.execute(
+            "SELECT * FROM members WHERE member_digits='4417'"
+        ).fetchone()
+        for n in range(10):
+            conn.execute(
+                "INSERT INTO members (id, full_name, display_name, member_digits, birth_month, plan_id, coverage_start, coverage_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    f"race-member-{n}",
+                    f"Test Member {n}",
+                    f"Test {n}",
+                    f"{7000 + n:04d}",
+                    4,
+                    original["plan_id"],
+                    original["coverage_start"],
+                    original["coverage_end"],
+                ),
+            )
+    prepared = []
+    for n in range(10):
+        cid = create_call(db, f"ten-race-{n}")[0]["call_id"]
+        verify_member(db, cid, f"{7000 + n:04d}", 4)
+        search_providers(db, cid, "primary care", "10023")
+        select_provider(db, cid, "P2")
+        offered = availability(db, cid, "2026-11-13", "2026-11-13", "afternoon")[
+            "slots"
+        ]
+        select_slot(db, cid, offered[0]["slot_id"])
+        token = preview_booking(db, cid)["token"]
+        arm_booking(db, cid, token)
+        consent(db, clock, cid)
+        prepared.append((cid, token))
+    barrier = Barrier(10)
+
+    def confirm(pair):
+        barrier.wait(timeout=10)
+        try:
+            return confirm_booking(db, *pair)[1]
+        except DomainError as exc:
+            return exc.code
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        outcomes = list(pool.map(confirm, prepared))
+    assert outcomes.count(201) == 1, outcomes
+    assert outcomes.count("SLOT_TAKEN") == 9, outcomes
+    with db.snapshot() as conn:
+        assert conn.execute("SELECT count(*) FROM appointments").fetchone()[0] == 1
