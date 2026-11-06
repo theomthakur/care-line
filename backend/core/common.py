@@ -63,7 +63,7 @@ def require_coverage(member, day):
         label = f"{end.strftime('%B')} {end.day}, {end.year}"
         raise DomainError(
             "COVERAGE_ENDED",
-            f"Your demo coverage ends on {label}. I can't offer an appointment outside that coverage.",
+            f"Your coverage ends on {label}. I can't offer an appointment outside that coverage.",
         )
 
 

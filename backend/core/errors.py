@@ -1,7 +1,7 @@
 """Wire errors shared by the core and the operations router."""
 
 ERRORS = {
-    "VERIFICATION_REQUIRED": (403, "Please verify your demo member details first."),
+    "VERIFICATION_REQUIRED": (403, "Please verify your member details first."),
     "VERIFICATION_FAILED": (
         403,
         "Those details did not match. Please try the four digits and birth month again.",
@@ -13,7 +13,7 @@ ERRORS = {
     "INVALID_ZIP": (422, "Please give me a five-digit ZIP code."),
     "NO_MATCH": (
         404,
-        "I couldn't find an eligible primary care provider in our demo list for that ZIP.",
+        "I couldn't find an eligible primary care provider near that ZIP.",
     ),
     "NO_SUPPORTED_ANSWER": (
         422,
@@ -21,20 +21,20 @@ ERRORS = {
     ),
     "COVERAGE_ENDED": (
         403,
-        "That visit date is outside your demo coverage. I can't offer an appointment under that coverage.",
+        "That visit date is outside your coverage. I can't offer an appointment under that coverage.",
     ),
-    "UNKNOWN_PROVIDER": (404, "I couldn't find that provider in the demo directory."),
+    "UNKNOWN_PROVIDER": (404, "I couldn't find that provider."),
     "NOT_BOOKABLE": (
         409,
         "That provider or time isn't an eligible option for this request. Let me check again.",
     ),
     "VISIT_TYPE_UNAVAILABLE": (
         422,
-        "This demo books new-patient primary care visits only. That choice isn't available.",
+        "I can book new-patient primary care visits only. That choice isn't available.",
     ),
     "NO_AVAILABILITY": (
         404,
-        "There are no open times for that request in the demo schedule. I can request a follow-up.",
+        "There are no open times for that request. I can request a follow-up.",
     ),
     "SLOT_IN_PAST": (
         422,
@@ -42,16 +42,16 @@ ERRORS = {
     ),
     "TOO_SOON": (
         422,
-        "This demo needs at least two hours before a visit. Let's choose a later time.",
+        "I need at least two hours before a visit. Let's choose a later time.",
     ),
     "OUTSIDE_WINDOW": (
         422,
-        "This demo can search only through the next fourteen days. Let's choose a date in that window.",
+        "I can search only the next fourteen days. Let's choose a date in that window.",
     ),
     "SLOT_TAKEN": (409, "That time was just taken. Let me check the next opening."),
     "OVERLAP": (
         409,
-        "You already have a simulated appointment at that time. Let's choose another.",
+        "You already have an appointment at that time. Let's choose another.",
     ),
     "NOT_ARMED": (
         409,
@@ -67,7 +67,11 @@ ERRORS = {
     ),
     "CALL_ACTIVE": (
         409,
-        "The demo can't be reset while a call or booking is in progress.",
+        "The system can't be reset while a call or booking is in progress.",
+    ),
+    "MEMBER_IN_USE": (
+        409,
+        "That account is already on another call right now. Please try again in a few minutes.",
     ),
     "CALL_CLOSED": (
         409,
@@ -79,15 +83,15 @@ ERRORS = {
         409,
         "I couldn't save that turn consistently. Please repeat your answer.",
     ),
-    "UNAUTHORIZED": (401, "I'm having trouble connecting to the demo service."),
+    "UNAUTHORIZED": (401, "I'm having trouble connecting to our system."),
     "FORBIDDEN": (403, "That action isn't available from this connection."),
     "SERVICE_UNAVAILABLE": (
         503,
-        "The demo service is temporarily unavailable. I can't confirm the outcome yet.",
+        "Our system is temporarily unavailable. I can't confirm the outcome yet.",
     ),
     "INTERNAL_ERROR": (
         500,
-        "Something went wrong with the demo service. I can't confirm the outcome yet.",
+        "Something went wrong on our side. I can't confirm the outcome yet.",
     ),
 }
 

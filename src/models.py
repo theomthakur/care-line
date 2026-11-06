@@ -35,7 +35,7 @@ def budget() -> Models:
         stt=inference.STT(model="assemblyai/universal-3-6-pro", language="en"),
         llm=inference.LLM(model="google/gemma-4-31b-it"),
         tts=inference.TTS(
-            model="fishaudio/s2.1-pro", voice="fa4c9eb3dccc4806b382b40d61c6b10a"
+            model="fishaudio/s2.1-pro", voice="e3cd384158934cc9a01029cd7d278634"
         ),
         expressive=True,
     )

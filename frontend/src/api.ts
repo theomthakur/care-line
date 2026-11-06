@@ -159,3 +159,21 @@ export async function takeSlot(slotId: string): Promise<void> {
 export async function resetDemo(): Promise<void> {
   await request("/admin/reset", { method: "POST", body: "{}" });
 }
+
+export interface CallListItem {
+  call_id: string;
+  status: 'live' | 'finalized';
+  created_at: string;
+  member: string | null;
+  booked: boolean;
+}
+
+export async function getCallHistory(signal?: AbortSignal): Promise<CallListItem[]> {
+  const body = await request<{ calls?: CallListItem[] }>('/calls/history', undefined, signal);
+  return Array.isArray(body.calls) ? body.calls : [];
+}
+
+export async function getCallById(id: string, signal?: AbortSignal): Promise<CallState | null> {
+  const body = await request<{ state?: unknown }>(`/calls/${encodeURIComponent(id)}/state`, undefined, signal);
+  return normalizeState(body.state);
+}

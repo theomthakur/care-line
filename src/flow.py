@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -41,6 +42,38 @@ Say = Callable[[str], SpeechLike]
 def line(speak: str, note: str = "") -> str:
     out = f"Say this, nearly as written: {speak}"
     return f"{out}\nNotes for you, never read these out: {note}" if note else out
+
+
+_NUMBER_WORDS = {
+    "zero": "0",
+    "oh": "0",
+    "o": "0",
+    "one": "1",
+    "two": "2",
+    "to": "2",
+    "too": "2",
+    "three": "3",
+    "four": "4",
+    "for": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+}
+
+
+def spoken_digits(value: str) -> str:
+    """'four four one seven', '4-4-1-7' and '4417' all become '4417'. Nothing is guessed."""
+    out = []
+    for piece in re.split(r"[^A-Za-z0-9]+", str(value).strip().lower()):
+        if piece.isdigit():
+            out.append(piece)
+        elif piece in _NUMBER_WORDS:
+            out.append(_NUMBER_WORDS[piece])
+        elif piece:
+            return ""  # a word that is not a digit: treat the whole thing as unclear
+    return "".join(out)
 
 
 class Flow:
@@ -104,6 +137,14 @@ class Flow:
     # ---- tools ----
     async def verify(self, digits: str, birth_month: str) -> str:
         assert self.call_id
+        digits = spoken_digits(digits)
+        if len(digits) != 4:
+            # A mumbled number is not a wrong number: don't spend one of three tries.
+            return (
+                "UNCLEAR. You did not get exactly four digits. Do not guess and do not "
+                "verify. Ask the caller to say the last four digits of their member number "
+                "slowly, one at a time."
+            )
         res = await self._call(self.backend.verify, self.call_id, digits, birth_month)
         if isinstance(res, str):
             return res

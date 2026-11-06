@@ -88,6 +88,90 @@ def calls_latest(conn: sqlite3.Connection = Depends(get_conn)):
     return {"state": build_state(conn), "speak": ""}
 
 
+@router.get("/providers/directory")
+def providers_directory(conn: sqlite3.Connection = Depends(get_conn)):
+    """Read-only provider directory with open times per day, for the operator workspace."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+
+    from . import clock
+
+    eastern = ZoneInfo("America/New_York")
+    now = clock.now().astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out = []
+    for p in conn.execute("SELECT * FROM providers ORDER BY CAST(SUBSTR(id,2) AS INT)"):
+        networks = [
+            r["network"]
+            for r in conn.execute(
+                "SELECT network FROM provider_networks WHERE provider_id=? ORDER BY network",
+                (p["id"],),
+            )
+        ]
+        days: dict[str, dict[str, int]] = {}
+        next_open: list[str] = []
+        for r in conn.execute(
+            "SELECT starts_at,state FROM slots WHERE provider_id=? AND starts_at>? ORDER BY starts_at",
+            (p["id"], now),
+        ):
+            local = datetime.fromisoformat(
+                r["starts_at"].replace("Z", "+00:00")
+            ).astimezone(eastern)
+            day = days.setdefault(local.date().isoformat(), {"open": 0, "total": 0})
+            day["total"] += 1
+            if r["state"] == "open":
+                day["open"] += 1
+                if len(next_open) < 3:
+                    next_open.append(r["starts_at"])
+        out.append(
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "specialty": p["specialty"],
+                "zip": p["zip"],
+                "phone": p["phone"],
+                "accepting_new_patients": bool(p["accepting_new_patients"]),
+                "networks": networks,
+                "open_slots": sum(d["open"] for d in days.values()),
+                "next_open": next_open,
+                "days": [{"date": k, **v} for k, v in sorted(days.items())],
+            }
+        )
+    return {"providers": out, "speak": ""}
+
+
+@router.get("/calls/history")
+def calls_history(conn: sqlite3.Connection = Depends(get_conn)):
+    """Recent demo calls, with no credentials or transcript contents in the list."""
+    rows = conn.execute(
+        "SELECT c.id,c.status,c.created_at,m.display_name,c.verification_status,"
+        "EXISTS(SELECT 1 FROM appointments a WHERE a.call_id=c.id AND a.status='booked') AS booked "
+        "FROM calls c LEFT JOIN members m ON m.id=c.member_id "
+        "ORDER BY c.created_at DESC,c.id DESC LIMIT 100"
+    ).fetchall()
+    return {
+        "calls": [
+            {
+                "call_id": r["id"],
+                "status": r["status"],
+                "created_at": r["created_at"],
+                "member": r["display_name"]
+                if r["verification_status"] == "verified"
+                else None,
+                "booked": bool(r["booked"]),
+            }
+            for r in rows
+        ]
+    }
+
+
+@router.get("/calls/{call_id}/state")
+def calls_state(call_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    state = build_state(conn, call_id)
+    if state is None:
+        raise OpsError("CALL_NOT_FOUND")
+    return {"state": state, "speak": ""}
+
+
 @router.get("/tasks")
 def tasks(status: str | None = None, conn: sqlite3.Connection = Depends(get_conn)):
     return {"tasks": list_tasks(conn, status), "speak": ""}

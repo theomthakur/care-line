@@ -23,6 +23,8 @@ class Database:
         self.path = Path(path or os.environ.get("MEMBERGUIDE_DB_PATH", DEFAULT_PATH))
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.timeout = timeout
+        # One live call per member. Off for library use, on for the running service.
+        self.one_call_per_member = False
         self._condition = threading.Condition()
         self._queue = deque()
 

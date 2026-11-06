@@ -14,18 +14,26 @@ from starlette.exceptions import HTTPException
 from backend.core.db import Database
 from backend.core.errors import DomainError
 from backend.core.routes import router
-from backend.core.seed import seed
+from backend.core.seed import seed, seed_expanded
 
 logger = logging.getLogger(__name__)
 
 
 def create_app(*, database=None, agent_key=None, ops_router=None):
-    database = database or Database()
+    expanded = False
+    if database is None:
+        expanded = os.environ.get("MEMBERGUIDE_EXPANDED_ROSTER", "1") == "1"
+        database = Database()
+        database.one_call_per_member = (
+            os.environ.get("MEMBERGUIDE_ONE_CALL_PER_MEMBER", "1") == "1"
+        )
 
     @asynccontextmanager
     async def lifespan(app):
         database.initialize()
         seed(database)
+        if expanded:
+            seed_expanded(database)
         yield
 
     app = FastAPI(title="MemberGuide synthetic booking service", lifespan=lifespan)

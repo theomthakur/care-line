@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, CloudOff, FlaskConical, MessageSquare, PhoneCall, PhoneOff, RefreshCw, WifiOff } from "lucide-react";
-import { getLatest } from "./api";
+import { CloudOff, FlaskConical, MessageSquare, PhoneCall, PhoneOff, RefreshCw, WifiOff } from "lucide-react";
+import { getLatest, getCallHistory, getCallById, type CallListItem } from "./api";
+import { Providers } from "./Providers";
+import { ProductShell, History, Architecture, Deck, Developer, type Section } from "./ProductShell";
 import { ago, callStartedAt, lastTurn, mmss, shortClock } from "./format";
 import { FIXTURE_STAGES } from "./fixtures";
 import { useLatest, type Connection } from "./usePolling";
@@ -153,31 +155,51 @@ function Workspace({ s, canAct, onChanged, stale }: { s: CallState; canAct: bool
 
 export function App() {
   const live = useLatest(getLatest, 1000, !isFixture);
+  const [section, setSection] = useState<Section>("workspace");
+  const [developer, setDeveloper] = useState(() => localStorage.getItem("careline-developer") === "on");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedState, setSelectedState] = useState<CallState | null>(null);
+  const [selectionError, setSelectionError] = useState("");
+  const [history, setHistory] = useState<CallListItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  useEffect(() => { localStorage.setItem("careline-developer", developer ? "on" : "off"); if (!developer && section === "developer") setSection("workspace"); }, [developer, section]);
+  useEffect(() => {
+    if (section !== "history") return;
+    let active = true;
+    const load = async () => { try { const items = await getCallHistory(); if (active) { setHistory(items); setHistoryError(""); } } catch { if (active) setHistoryError("Check the backend connection and try again."); } finally { if (active) setHistoryLoading(false); } };
+    setHistoryLoading(true); void load(); const id = setInterval(load, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [section]);
+  useEffect(() => {
+    if (!selectedId) { setSelectedState(null); setSelectionError(""); return; }
+    let active = true;
+    const load = async () => { try { const selected = await getCallById(selectedId); if (active) { setSelectedState(selected); setSelectionError(selected ? "" : "This call is no longer available."); } } catch { if (active) setSelectionError("Could not load this call. Check your connection."); } };
+    void load(); const id = setInterval(load, 3000); return () => { active = false; clearInterval(id); };
+  }, [selectedId]);
   const [stage, setStage] = useState("booked");
   const fixture = useMemo(() => FIXTURE_STAGES.find((f) => f.key === stage) ?? FIXTURE_STAGES[0], [stage]);
 
-  const state = isFixture ? fixture.state : live.state;
+  const state = isFixture ? fixture.state : selectedId ? selectedState : live.state;
   const connection: Connection = isFixture ? "connected" : live.connection;
   const lastOk = live.lastOk;
-  const canAct = !isFixture;
+  const canAct = !isFixture && !selectedId;
   const down = !isFixture && (connection === "stale" || connection === "disconnected");
   const refresh = live.refresh;
 
   return (
+    <ProductShell section={section} setSection={(next) => { setSection(next); if (next === "workspace") setSelectedId(null); }} developer={developer} setDeveloper={setDeveloper}>
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true"><Activity size={16} strokeWidth={2.4} /></span>
-          Care Line
-        </div>
-        <span className="crumb-sep" />
-        <span className="crumb">Operator console</span>
+        <span className="crumb">Workspace / {section === "workspace" ? "Live call" : section === "history" ? "Call history" : section === "providers" ? "Providers" : section === "architecture" ? "System design" : section === "presentation" ? "Presentation" : "Developer view"}</span>
         <span className="topbar-spacer" />
         <div className="topbar-right">
           <ConnectionBadge connection={connection} lastOk={lastOk} fixture={isFixture} onRetry={refresh} />
         </div>
       </header>
 
+      {section === "providers" ? <Providers /> : section === "history" ? <History calls={history} loading={historyLoading} error={historyError} onSelect={(id) => { setSelectedState(null); setSelectedId(id); setSection("workspace"); }} /> : section === "architecture" ? <Architecture /> : section === "presentation" ? <Deck /> : section === "developer" ? <Developer state={state} /> : <>
+      {selectedId && <div className="notice info"><span className="grow">{selectionError || "Viewing a saved call. Demo controls are disabled."}</span><button onClick={() => setSelectedId(null)}>Return to live call</button></div>}
       {isFixture && (
         <div className="fixture-bar" role="region" aria-label="Fixture mode">
           <b>Fixture mode · not a live call</b>
@@ -212,6 +234,8 @@ export function App() {
           <Workspace key={state.call_id} s={state} canAct={canAct} onChanged={refresh} stale={down} />
         </>
       )}
+      </>}
     </div>
+    </ProductShell>
   );
 }

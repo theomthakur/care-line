@@ -116,7 +116,10 @@ async def entrypoint(ctx: JobContext) -> None:
             turn_detection=inference.TurnDetector(),
             # A shorter endpoint reduces silence after the caller finishes. Test
             # interruptions in the room; overly aggressive endpointing cuts people off.
-            endpointing={"mode": "fixed", "min_delay": 0.3, "max_delay": 2.0},
+            # Patient enough for mumbling and mid-sentence pauses.
+            endpointing={"mode": "fixed", "min_delay": 0.6, "max_delay": 3.0},
+            # A cough or "mm-hmm" must not cut the read-back short.
+            interruption={"min_duration": 0.6, "min_words": 1},
             # Complete the safety and consent checks before generating a reply.
             preemptive_generation={"enabled": False},
         ),

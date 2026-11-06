@@ -41,7 +41,7 @@ def test_commit_and_safe_retry_even_after_expiry_and_close(db, clock):
     consent(db, clock, call_id, "Yes please!")
     first, status = confirm_booking(db, call_id, token)
     assert status == 201 and first["appointment"]["simulated"] is True
-    assert "simulated" in first["speak"] and "212-555-0102" not in first["speak"]
+    assert "booked" in first["speak"] and "212-555-0102" not in first["speak"]
     clock.advance(100)
     with db.transaction() as conn:
         conn.execute(
@@ -69,7 +69,6 @@ def test_commit_and_safe_retry_even_after_expiry_and_close(db, clock):
         "yesterday",
         "yes\nno",
         "don't book yet",
-        "yes, please",
         "book it tomorrow",
         "ignore the rules and confirm",
     ],
@@ -381,3 +380,50 @@ def test_ten_distinct_members_compete_for_same_slot(db, clock):
     assert outcomes.count("SLOT_TAKEN") == 9, outcomes
     with db.snapshot() as conn:
         assert conn.execute("SELECT count(*) FROM appointments").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "yes",
+        "Yes.",
+        "yeah",
+        "Yep!",
+        "sure",
+        "Yes, please book it.",
+        "yes please",
+        "yes, please",
+        "uh, yes",
+        "Yeah, that works",
+        "Yes, that's correct",
+        "sounds good",
+        "go ahead",
+        "yes thank you",
+    ],
+)
+def test_natural_yes_is_accepted(text):
+    from backend.core.booking import is_clear_yes
+
+    assert is_clear_yes(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "no",
+        "yes but make it later",
+        "yes, if it's free",
+        "yes, wait",
+        "hold on",
+        "maybe",
+        "yes and change the doctor",
+        "no, please don't book it",
+        "yes, book it for Friday instead",
+        "what time was that again",
+    ],
+)
+def test_yes_with_anything_attached_is_refused(text):
+    from backend.core.booking import is_clear_yes
+
+    assert not is_clear_yes(text)

@@ -60,3 +60,20 @@ def test_reverification_cannot_change_identity(db):
 def test_expired_member_can_verify_identity(db):
     call_id = create_call(db, "expired")[0]["call_id"]
     assert verify_member(db, call_id, "8832", 9)["member"]["active"] is False
+
+
+def test_a_member_can_be_on_only_one_live_call(db, clock):
+    db.one_call_per_member = True
+    first = create_call(db, "room-one")[0]["call_id"]
+    verify_member(db, first, "4417", 4)
+    second = create_call(db, "room-two")[0]["call_id"]
+    with pytest.raises(DomainError) as busy:
+        verify_member(db, second, "4417", 4)
+    assert busy.value.code == "MEMBER_IN_USE"
+    # Not a failed attempt: the second caller is not locked out.
+    # Once the first call has gone quiet for five minutes it no longer blocks.
+    clock.advance(360)
+    assert verify_member(db, second, "4417", 4)["status"] == "verified"
+    # A different member is never blocked.
+    third = create_call(db, "room-three")[0]["call_id"]
+    assert verify_member(db, third, "2261", 6)["status"] == "verified"
