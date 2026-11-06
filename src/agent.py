@@ -102,7 +102,7 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=models.stt,
         # Bias transcription toward words it would otherwise misspell.
         stt_context_options=STTContextOptions(
-            keyterms=["Take2", "LiveKit"],
+            keyterms=["Take2", "LiveKit", "Haddad", "Liu", "Westside", "Sample Health"],
             keyterm_detection={"enabled": True},
         ),
         # Brain: the LLM
