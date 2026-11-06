@@ -1,0 +1,28 @@
+{
+  "state": {
+    "call_id": "c_01",
+    "status": "live",
+    "verified": false,
+    "member": null,
+    "request": {
+      "version": 0,
+      "specialty": null,
+      "zip": null
+    },
+    "turns": [],
+    "providers": [],
+    "excluded": [],
+    "selected": null,
+    "evidence": [],
+    "offered_slots": [],
+    "draft": null,
+    "appointment": null,
+    "day_slots": [],
+    "tasks": [],
+    "summary": null,
+    "events": [
+      "call_created"
+    ]
+  },
+  "speak": ""
+}
