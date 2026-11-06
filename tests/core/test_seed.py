@@ -14,7 +14,7 @@ def test_fixtures_and_repeatable_seed(db, clock):
         ).fetchone()
         assert maya["full_name"] == "Maya Torres"
         assert maya["birth_month"] == 4
-        assert conn.execute("SELECT count(*) FROM providers").fetchone()[0] == 6
+        assert conn.execute("SELECT count(*) FROM providers").fetchone()[0] == 9
         before = [tuple(row) for row in conn.execute("SELECT * FROM slots ORDER BY id")]
     seed(db, demo_date=clock().date())
     with db.snapshot() as conn:

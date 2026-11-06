@@ -21,12 +21,31 @@ PROVIDERS = [
     ),
     ("P5", "Dr. Samuel Reyes", "dermatology", "10019", "212-555-0105", 1, ["METRO"]),
     ("P6", "Dr. Nina Rao", "cardiology", "10023", "212-555-0106", 1, ["VALUE"]),
+    ("P7", "Dr. Elena Cruz", "cardiology", "10024", "212-555-0107", 1, ["METRO"]),
+    (
+        "P8",
+        "Dr. Aaron Shah",
+        "dermatology",
+        "10023",
+        "212-555-0108",
+        1,
+        ["METRO", "VALUE"],
+    ),
+    (
+        "P9",
+        "Dr. Priya Mehta",
+        "cardiology",
+        "10019",
+        "212-555-0109",
+        0,
+        ["METRO", "VALUE"],
+    ),
 ]
 GOLD_PREV = "One annual preventive visit with an in-network primary care provider is covered at no cost share when billed as preventive. Other services during the visit may be billed separately."
 BASIC_PREV = "One annual preventive visit with an in-network primary care provider is covered when billed as preventive. Other services may be billed separately."
 
 
-def seed(db, *, demo_date=None):
+def seed(db, *, demo_date=None, care_journeys=False):
     demo_date = demo_date or db.now().astimezone(EASTERN).date()
     # Keep the promised weekday/time pairs even when reseeded on another day.
     next_days = {
@@ -47,8 +66,8 @@ def seed(db, *, demo_date=None):
     }
     with db.transaction() as conn:
         conn.executemany(
-            "INSERT OR IGNORE INTO plans VALUES (?,?,?)",
-            [("GOLD", "Gold 2026", "METRO"), ("BASIC", "Basic 2026", "VALUE")],
+            "INSERT OR IGNORE INTO plans(id,name,network,specialist_referral_required) VALUES (?,?,?,?)",
+            [("GOLD", "Gold 2026", "METRO", 0), ("BASIC", "Basic 2026", "VALUE", 1)],
         )
         conn.executemany(
             "INSERT OR IGNORE INTO members VALUES (?,?,?,?,?,?,?,?)",
@@ -82,6 +101,26 @@ def seed(db, *, demo_date=None):
                     "BASIC",
                     "2026-01-01",
                     "2026-10-31",
+                ),
+                (
+                    "M4",
+                    "Tessa Brooks",
+                    "Tessa B.",
+                    "7734",
+                    2,
+                    "BASIC",
+                    "2026-01-01",
+                    "2026-12-31",
+                ),
+                (
+                    "M5",
+                    "Jordan Blake",
+                    "Jordan B.",
+                    "6652",
+                    11,
+                    "BASIC",
+                    "2026-01-01",
+                    "2026-12-31",
                 ),
             ],
         )
@@ -159,6 +198,12 @@ def seed(db, *, demo_date=None):
                         ),
                     )
 
+    if care_journeys:
+        from .care_fixtures import seed_care_journeys
+
+        return seed_care_journeys(db, demo_date)
+    return None
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -166,10 +211,26 @@ def main():
         "--date", type=date.fromisoformat, help="Eastern demo date (YYYY-MM-DD)"
     )
     parser.add_argument("--db", help="SQLite path")
+    parser.add_argument(
+        "--care-journeys",
+        action="store_true",
+        help="Add completed PCP visits, referrals and rescheduling fixtures",
+    )
+    parser.add_argument(
+        "--export",
+        help="Write the synthetic journey manifest as JSON (requires --care-journeys)",
+    )
     args = parser.parse_args()
+    if args.export and not args.care_journeys:
+        parser.error("--export requires --care-journeys")
     db = Database(args.db)
     db.initialize()
-    seed(db, demo_date=args.date)
+    manifest = seed(db, demo_date=args.date, care_journeys=args.care_journeys)
+    if args.export:
+        import json
+        from pathlib import Path
+
+        Path(args.export).write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"Synthetic MemberGuide database ready: {db.path}")
 
 

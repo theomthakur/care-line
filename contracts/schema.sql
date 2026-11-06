@@ -1,4 +1,4 @@
--- MemberGuide proposed SQLite contract. DDL only: no backend or seed implementation.
+-- MemberGuide SQLite contract v2. Applied by backend.core.db, including migrations.
 -- bookings are stored in appointments (the name used by plan section 8).
 -- Enable foreign_keys on EVERY connection; only the backend opens this database.
 -- UTC timestamps use YYYY-MM-DDTHH:MM:SSZ; coverage dates use YYYY-MM-DD
@@ -8,7 +8,9 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE plans (
     id TEXT PRIMARY KEY NOT NULL,
     name TEXT NOT NULL UNIQUE,
-    network TEXT NOT NULL
+    network TEXT NOT NULL,
+    specialist_referral_required INTEGER NOT NULL DEFAULT 1
+        CHECK (specialist_referral_required IN (0, 1))
 );
 
 CREATE TABLE members (
@@ -92,7 +94,9 @@ CREATE TABLE calls (
     verification_attempts INTEGER NOT NULL DEFAULT 0 CHECK (verification_attempts BETWEEN 0 AND 3),
     member_id TEXT REFERENCES members(id),
     request_version INTEGER NOT NULL DEFAULT 0 CHECK (request_version >= 0),
-    specialty TEXT CHECK (specialty = 'primary care'),
+    specialty TEXT CHECK (specialty IN ('primary care', 'cardiology', 'dermatology')),
+    operation TEXT NOT NULL DEFAULT 'book' CHECK (operation IN ('book', 'reschedule')),
+    reschedule_appointment_id TEXT,
     zip TEXT CHECK (length(zip) = 5 AND zip NOT GLOB '*[^0-9]*'),
     selected_provider_id TEXT REFERENCES providers(id),
     -- Small snapshots keep this prototype independent of a second cache/service.
@@ -115,7 +119,10 @@ CREATE TABLE calls (
         OR (verification_status IN ('unverified', 'locked') AND member_id IS NULL)
     ),
     CHECK ((status = 'live' AND finalized_at IS NULL) OR (status = 'finalized' AND finalized_at IS NOT NULL)),
-    UNIQUE (id, member_id)
+    UNIQUE (id, member_id),
+    FOREIGN KEY (reschedule_appointment_id, member_id) REFERENCES appointments(id, member_id),
+    CHECK ((operation = 'book' AND reschedule_appointment_id IS NULL)
+        OR (operation = 'reschedule' AND reschedule_appointment_id IS NOT NULL AND member_id IS NOT NULL))
 );
 
 CREATE TABLE turns (
@@ -146,9 +153,17 @@ CREATE TABLE drafts (
     armed_at TEXT,
     expires_at TEXT,
     created_at TEXT NOT NULL,
+    operation TEXT NOT NULL DEFAULT 'book' CHECK (operation IN ('book', 'reschedule')),
+    reschedule_appointment_id TEXT,
+    source_appointment_version INTEGER CHECK (source_appointment_version >= 1),
+    referral_id TEXT,
     FOREIGN KEY (call_id, member_id) REFERENCES calls(id, member_id),
     FOREIGN KEY (slot_id, provider_id) REFERENCES slots(id, provider_id),
+    FOREIGN KEY (reschedule_appointment_id, member_id) REFERENCES appointments(id, member_id),
+    FOREIGN KEY (referral_id, member_id) REFERENCES referrals(id, member_id),
     UNIQUE (call_id, revision),
+    CHECK ((operation = 'book' AND reschedule_appointment_id IS NULL AND source_appointment_version IS NULL)
+        OR (operation = 'reschedule' AND reschedule_appointment_id IS NOT NULL AND source_appointment_version IS NOT NULL)),
     CHECK (
         status NOT IN ('preview', 'armed', 'booked')
         OR (token IS NOT NULL AND details_hash IS NOT NULL AND read_back IS NOT NULL AND preview_user_seq IS NOT NULL)
@@ -161,23 +176,67 @@ CREATE TABLE drafts (
 
 CREATE TABLE appointments (
     id TEXT PRIMARY KEY NOT NULL,
-    call_id TEXT NOT NULL UNIQUE, -- first build: one completed booking per call
-    member_id TEXT NOT NULL,
+    call_id TEXT UNIQUE, -- voice: one committed action per call; fixture: null
+    member_id TEXT NOT NULL REFERENCES members(id),
     provider_id TEXT NOT NULL REFERENCES providers(id),
     slot_id TEXT NOT NULL,
-    draft_id TEXT NOT NULL UNIQUE REFERENCES drafts(id),
+    draft_id TEXT UNIQUE REFERENCES drafts(id),
     confirmation TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL DEFAULT 'booked' CHECK (status = 'booked'),
+    status TEXT NOT NULL DEFAULT 'booked' CHECK (status IN ('booked', 'completed', 'cancelled', 'rescheduled')),
     starts_at TEXT NOT NULL, -- committed snapshot; code checks equality to slots
     ends_at TEXT NOT NULL,
-    consent_turn_seq INTEGER NOT NULL,
+    consent_turn_seq INTEGER,
     created_at TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'voice' CHECK (source IN ('voice', 'synthetic_fixture')),
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+    referral_id TEXT,
+    replaces_appointment_id TEXT UNIQUE,
+    UNIQUE (id, member_id),
     FOREIGN KEY (call_id, member_id) REFERENCES calls(id, member_id),
     FOREIGN KEY (slot_id, provider_id) REFERENCES slots(id, provider_id),
     FOREIGN KEY (call_id, consent_turn_seq) REFERENCES turns(call_id, seq),
+    FOREIGN KEY (referral_id, member_id) REFERENCES referrals(id, member_id),
+    FOREIGN KEY (replaces_appointment_id, member_id) REFERENCES appointments(id, member_id),
+    CHECK (replaces_appointment_id IS NULL OR replaces_appointment_id <> id),
+    CHECK ((source = 'voice' AND call_id IS NOT NULL AND draft_id IS NOT NULL AND consent_turn_seq IS NOT NULL)
+        OR (source = 'synthetic_fixture' AND call_id IS NULL AND draft_id IS NULL AND consent_turn_seq IS NULL)),
     CHECK (starts_at < ends_at),
     CHECK (julianday(starts_at) IS NOT NULL AND julianday(ends_at) IS NOT NULL),
     CHECK (abs((julianday(ends_at) - julianday(starts_at)) * 86400 - 1800) < 0.001)
+);
+
+-- A caller-reported recommendation is not a verified formal referral.
+-- Validity on the visit date, specialty, PCP identity and source visit completion
+-- are checked by backend policy, not inferred from the status alone.
+CREATE TABLE referrals (
+    id TEXT PRIMARY KEY NOT NULL,
+    member_id TEXT NOT NULL REFERENCES members(id),
+    referring_provider_id TEXT REFERENCES providers(id),
+    referring_appointment_id TEXT,
+    specialty TEXT NOT NULL CHECK (specialty IN ('cardiology', 'dermatology')),
+    status TEXT NOT NULL CHECK (status IN ('reported', 'verified', 'revoked')),
+    valid_from TEXT,
+    valid_until TEXT,
+    source TEXT NOT NULL CHECK (source IN ('synthetic_fixture', 'pcp_record', 'caller_report')),
+    created_at TEXT NOT NULL,
+    UNIQUE (id, member_id),
+    FOREIGN KEY (referring_appointment_id, member_id) REFERENCES appointments(id, member_id),
+    CHECK ((valid_from IS NULL AND valid_until IS NULL)
+        OR (valid_from IS NOT NULL AND valid_until IS NOT NULL AND valid_from <= valid_until
+            AND date(valid_from) IS NOT NULL AND date(valid_until) IS NOT NULL)),
+    CHECK (status <> 'verified' OR (valid_from IS NOT NULL AND valid_until IS NOT NULL
+        AND referring_provider_id IS NOT NULL AND referring_appointment_id IS NOT NULL)),
+    CHECK (source <> 'caller_report' OR status = 'reported')
+);
+CREATE INDEX referrals_member_specialty ON referrals(member_id, specialty, status, valid_until);
+
+-- Opt-in demo history is installed once per database. Reseeding returns the
+-- original manifest and never restores a slot that a later caller booked.
+CREATE TABLE demo_fixture_sets (
+    id TEXT PRIMARY KEY NOT NULL,
+    demo_date TEXT NOT NULL,
+    manifest_json TEXT NOT NULL CHECK (json_valid(manifest_json)),
+    created_at TEXT NOT NULL
 );
 
 -- Required defense against double booking even if an application guard fails.
@@ -228,10 +287,22 @@ CREATE TABLE tasks (
 -- Token replay finds appointments through drafts.token before live-call checks.
 -- SQL constraints do not prove audible playout or semantic consent.
 -- Draft/token mutation is forbidden once its appointment commits.
+-- Rescheduling appends a replacement appointment (replaces_appointment_id),
+-- marks the original rescheduled and increments its version, claims the new
+-- slot and releases the old slot in ONE transaction after a new consent cycle.
+-- Compare the draft's source_appointment_version at commit. On conflict, roll
+-- back everything and keep the original booking. Recheck referral validity on
+-- the NEW visit date. Same provider/visit type/modality for the first extension.
 -- The pending-write barrier and per-call ordered ingress are backend duties.
 --
 -- Reset under that same barrier only when no call/write is active. Break the
 -- circular reference first: set calls.current_draft_id = NULL, then delete tasks,
--- events, appointments, drafts, turns, calls. Restore slots.state = seed_state,
+-- events, voice appointments, drafts, turns, calls. Calls and drafts now also
+-- reference source appointments: clear/delete these references before parents.
+-- Preserve synthetic_fixture appointments and their referrals. Reset their
+-- statuses/versions and slots from the selected journey fixture manifest;
+-- a generic DELETE FROM appointments is no longer a valid reset.
+-- Restore other slots.state = seed_state,
 -- occupancy_reason = NULL for open or seeded_occupancy for seeded booked slots.
 -- Keep plans, members, plan_sections, providers, provider_networks and slot fixtures.
+PRAGMA user_version = 2;

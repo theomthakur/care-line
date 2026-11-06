@@ -16,9 +16,15 @@ private key. To restart with that same configuration:
 uv run uvicorn backend.main:app --env-file .env.memberguide --host 127.0.0.1 --port 8000
 ```
 
-Startup creates `data/memberguide.db` using the contract DDL and seeds the three
-members, two plans, six providers, verbatim plan passages and ten business days
+Startup creates `data/memberguide.db` using the contract DDL and seeds five
+members, two plans, nine providers, verbatim plan passages and ten business days
 of 30-minute Eastern slots. `MEMBERGUIDE_DB_PATH` overrides the database path.
+
+Schema v2 migrates existing data automatically. The specialist/referral and
+PCP/specialist rescheduling fixtures are opt-in; see
+[the data model and Om/Sid handoff](../../contracts/care-journeys.md) for the
+generated demo DB, seed command and 13 cases. Specialist and rescheduling HTTP
+workflows are still pending; the core routes below remain primary-care-only.
 No key is invented when configuration is absent: agent requests fail closed.
 Keep one Uvicorn worker; both routers belong in this one backend process.
 

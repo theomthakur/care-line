@@ -52,3 +52,10 @@ Turn 4 is assistant speech and does not change the user-sequence snapshot. The
 backend retains original turns; the console examples redact verification data.
 `client_turn_id` is supplied by the adapter on writes and is not part of the
 display projection.
+
+`care-journeys.json` is a separate synthetic seed manifest for the schema-v2 data
+extension, not an HTTP response or `State` object. It includes initial plan,
+provider, member, appointment, referral and relevant slot rows plus 13 named
+specialist/rescheduling cases. See [care-journeys.md](../care-journeys.md) for
+regeneration, route status and the Om/Sid handoff. Its printed member cards must
+not be exposed as unverified console state.
