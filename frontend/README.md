@@ -22,4 +22,6 @@ Set `CARELINE_BACKEND=http://host:port` to point the proxy elsewhere. No agent k
 
 **Fixture mode:** `http://localhost:5173/?source=fixture` shows saved copies of `contracts/examples/state-*.json` with a stage switcher, a permanent "not a live call" banner, and all actions disabled. It never touches the network.
 
+**Multiple calls:** the sidebar lists every live call and recent finished ones (`GET /calls`). Opening one polls only that call (`GET /calls/{id}/state`), so concurrent callers never mix. The selection is kept in the URL (`#call=<id>`) and is never changed automatically after the first pick.
+
 Everything on screen is synthetic demo data with a simulated provider schedule.

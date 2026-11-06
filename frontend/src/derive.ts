@@ -1,6 +1,6 @@
 // Everything the UI claims is derived here, strictly from backend state.
 // Nothing is optimistic: an action only reads "confirmed" if `appointment` is present.
-import type { CallState } from "./types";
+import type { CallStage, CallState, CallSummary } from "./types";
 import { humanize } from "./format";
 
 export type Tone = "good" | "warn" | "bad" | "info" | "neutral";
@@ -88,4 +88,56 @@ export function takeTarget(s: CallState): { slot_id: string; text: string } | nu
   const pick =
     open.find((d) => d.slot_id === s.draft?.slot_id) ?? open.find((d) => d.selected) ?? open.find((d) => d.offered);
   return pick ? { slot_id: pick.slot_id, text: pick.text } : null;
+}
+
+// ---- conversation list ------------------------------------------------------------------------
+
+export const STAGE_VIEW: Record<CallStage, { label: string; tone: "slate" | "amber" | "red" | "blue" | "teal" | "green" }> = {
+  unverified: { label: "Verifying", tone: "amber" },
+  locked: { label: "Locked", tone: "red" },
+  verified: { label: "Verified", tone: "blue" },
+  searching: { label: "Finding doctors", tone: "blue" },
+  offering: { label: "Choosing a time", tone: "blue" },
+  readback: { label: "Read-back", tone: "teal" },
+  awaiting_yes: { label: "Awaiting yes", tone: "amber" },
+  conflict: { label: "Slot taken", tone: "red" },
+  booked: { label: "Booked", tone: "green" },
+  followup: { label: "Follow-up", tone: "blue" },
+  ended: { label: "Ended", tone: "slate" },
+};
+
+/** Fixture mode only: derive a list row from a saved state. Live mode always uses GET /calls. */
+export function summaryFromState(s: CallState): CallSummary {
+  const phase = bookingPhase(s);
+  const stage: CallStage = s.appointment
+    ? "booked"
+    : s.status === "finalized"
+      ? s.tasks.length || s.summary?.outcome === "followup" ? "followup" : "ended"
+      : !s.verified
+        ? s.tasks.some((t) => t.packet.category === "verification_failed") ? "locked" : "unverified"
+        : phase === "awaiting_yes" ? "awaiting_yes"
+        : phase === "proposed" ? "readback"
+        : phase === "conflict" ? "conflict"
+        : s.selected || s.offered_slots.length ? "offering"
+        : s.providers.length || s.excluded.length ? "searching"
+        : "verified";
+  const last = s.turns[s.turns.length - 1];
+  const first = s.turns[0];
+  const created = first ? new Date(new Date(first.received_at).getTime() - first.t * 1000).toISOString() : new Date().toISOString();
+  return {
+    call_id: s.call_id,
+    status: s.status,
+    verification: s.verified ? "verified" : s.tasks.some((t) => t.packet.category === "verification_failed") ? "locked" : "unverified",
+    member: s.member ? { name: s.member.name, id_masked: s.member.id_masked } : null,
+    stage,
+    created_at: created,
+    finalized_at: s.status === "finalized" ? (last?.received_at ?? created) : null,
+    last_activity_at: last?.received_at ?? created,
+    turn_count: s.turns.length,
+    task_count: s.tasks.length,
+    open_tasks: s.tasks.filter((t) => t.status === "open").length,
+    outcome: s.summary?.outcome ?? null,
+    confirmation: s.appointment?.confirmation ?? null,
+    last_turn: last ? { role: last.role, text: last.text } : null,
+  };
 }

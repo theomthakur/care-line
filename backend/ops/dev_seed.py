@@ -75,7 +75,8 @@ def init_db(path: str | Path, now: datetime | None = None) -> sqlite3.Connection
     conn.executescript(SCHEMA.read_text())
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
-        "INSERT INTO plans VALUES ('plan_gold', 'Gold 2026', 'METRO'), ('plan_basic', 'Basic 2026', 'VALUE')"
+        "INSERT INTO plans(id,name,network,specialist_referral_required) "
+        "VALUES ('plan_gold', 'Gold 2026', 'METRO', 0), ('plan_basic', 'Basic 2026', 'VALUE', 1)"
     )
     conn.executemany(
         "INSERT INTO members VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

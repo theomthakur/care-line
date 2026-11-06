@@ -1,6 +1,8 @@
 import type {
   Appointment,
+  CallStage,
   CallState,
+  CallSummary,
   DaySlot,
   Draft,
   Evidence,
@@ -176,4 +178,58 @@ export async function getCallHistory(signal?: AbortSignal): Promise<CallListItem
 export async function getCallById(id: string, signal?: AbortSignal): Promise<CallState | null> {
   const body = await request<{ state?: unknown }>(`/calls/${encodeURIComponent(id)}/state`, undefined, signal);
   return normalizeState(body.state);
+}
+
+// ---------- multi-call ------------------------------------------------------------------------
+
+const STAGES: CallStage[] = [
+  "unverified", "locked", "verified", "searching", "offering",
+  "readback", "awaiting_yes", "conflict", "booked", "followup", "ended",
+];
+
+export function normalizeSummary(raw: unknown): CallSummary | null {
+  const c = obj<Record<string, unknown>>(raw);
+  if (!c || typeof c.call_id !== "string" || !c.call_id) return null;
+  const m = obj<Record<string, unknown>>(c.member);
+  const lt = obj<Record<string, unknown>>(c.last_turn);
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const created = str(c.created_at);
+  return {
+    call_id: c.call_id,
+    status: c.status === "finalized" ? "finalized" : "live",
+    verification: c.verification === "verified" || c.verification === "locked" ? c.verification : "unverified",
+    member: m && typeof m.name === "string" ? { name: m.name, id_masked: str(m.id_masked) } : null,
+    stage: STAGES.includes(c.stage as CallStage) ? (c.stage as CallStage) : "ended",
+    created_at: created,
+    finalized_at: typeof c.finalized_at === "string" ? c.finalized_at : null,
+    last_activity_at: str(c.last_activity_at, created),
+    turn_count: num(c.turn_count),
+    task_count: num(c.task_count),
+    open_tasks: num(c.open_tasks),
+    outcome: typeof c.outcome === "string" ? (c.outcome as CallSummary["outcome"]) : null,
+    confirmation: typeof c.confirmation === "string" ? c.confirmation : null,
+    last_turn: lt && typeof lt.text === "string" ? { role: lt.role === "assistant" ? "assistant" : "user", text: lt.text } : null,
+  };
+}
+
+/** GET /calls: every live call (newest first), then recently finished ones. */
+export async function getCalls(signal?: AbortSignal, recent = 20): Promise<CallSummary[]> {
+  const body = await request<{ calls?: unknown }>(`/calls?recent=${recent}`, undefined, signal);
+  return arr<unknown>(body.calls).map(normalizeSummary).filter((c): c is CallSummary => c !== null);
+}
+
+/**
+ * GET /calls/{id}/state. Resolves to `null` when the backend says CALL_NOT_FOUND (for
+ * example after a demo reset) so "gone" is distinguishable from a network failure.
+ */
+export async function getCallState(callId: string, signal?: AbortSignal): Promise<CallState | null> {
+  try {
+    const body = await request<{ state?: unknown }>(`/calls/${encodeURIComponent(callId)}/state`, undefined, signal);
+    const state = normalizeState(body.state);
+    if (!state) throw new ApiError(200, "BAD_RESPONSE", "The backend returned an unreadable call state.");
+    return state;
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "CALL_NOT_FOUND") return null;
+    throw e;
+  }
 }

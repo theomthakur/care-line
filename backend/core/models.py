@@ -7,6 +7,8 @@ from typing import Annotated, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 ID = Annotated[str, StringConstraints(min_length=1, strip_whitespace=True)]
+Specialty = Literal["primary care", "cardiology", "dermatology"]
+AppointmentStatus = Literal["booked", "completed", "cancelled", "rescheduled"]
 
 
 class RequestModel(BaseModel):
@@ -100,7 +102,7 @@ class Member(BaseModel):
 class Provider(BaseModel):
     id: str
     name: str
-    specialty: Literal["primary care"]
+    specialty: Specialty
     zip: str
     phone: str
     accepting_new_patients: bool
@@ -141,6 +143,55 @@ class Appointment(BaseModel):
     timezone: Literal["America/New_York"]
     when: str
     simulated: Literal[True]
+
+
+# Extension models are intentionally separate from the currently mounted v1
+# booking routes. See contracts/care-journeys.md for integration and route status.
+class CareAppointment(Appointment):
+    status: AppointmentStatus
+    specialty: Specialty
+    visit_type: Literal["new_patient"] = "new_patient"
+    modality: Literal["in_person"] = "in_person"
+    source: Literal["voice", "synthetic_fixture"]
+    version: int = Field(ge=1)
+    referral_id: Optional[str] = None
+    replaces_appointment_id: Optional[str] = None
+
+
+class Referral(BaseModel):
+    id: str
+    referring_provider_id: Optional[str] = None
+    referring_appointment_id: Optional[str] = None
+    specialty: Literal["cardiology", "dermatology"]
+    status: Literal["reported", "verified", "revoked"]
+    valid_from: Optional[date] = None
+    valid_until: Optional[date] = None
+    source: Literal["synthetic_fixture", "pcp_record", "caller_report"]
+
+
+class ReferralEligibility(BaseModel):
+    required: bool
+    status: Literal[
+        "not_required", "valid", "missing", "expired", "revoked", "reported"
+    ]
+    eligible: bool
+    evidence_id: str
+    referral: Optional[Referral] = None
+
+
+class CarePlan(BaseModel):
+    name: str
+    network: str
+    specialist_referral_required: bool
+    referral_evidence_id: str
+
+
+class RescheduleRequest(RequestModel):
+    appointment_id: ID
+
+
+class CareAppointmentsReply(Reply):
+    appointments: list[CareAppointment]
 
 
 class CallReply(Reply):

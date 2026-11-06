@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 
 from . import summary as summary_mod
@@ -32,6 +33,8 @@ def reset_demo(conn: sqlite3.Connection) -> dict:
 
     Refused with CALL_ACTIVE while any call is live or a commit is pending. Keeps plans,
     members, plan_sections, providers, provider_networks and the slot rows themselves.
+    If care-history fixtures are installed, restore their original appointments
+    and referrals rather than losing the data required by the next demo call.
     """
     with immediate(conn):
         live = conn.execute("SELECT id FROM calls WHERE status = 'live'").fetchall()
@@ -40,11 +43,45 @@ def reset_demo(conn: sqlite3.Connection) -> dict:
             for r in conn.execute("SELECT id FROM calls")
         ):
             raise OpsError("CALL_ACTIVE")
+        fixture = conn.execute(
+            "SELECT manifest_json FROM demo_fixture_sets WHERE id='care-journeys-v2'"
+        ).fetchone()
+        baseline = json.loads(fixture["manifest_json"]) if fixture else {}
+        # History introduces circular appointment/referral/draft links. All
+        # references must be valid again before this transaction can commit.
+        conn.execute("PRAGMA defer_foreign_keys = ON")
         conn.execute("UPDATE calls SET current_draft_id = NULL")
-        for table in ("tasks", "events", "appointments", "drafts", "turns", "calls"):
+        for table in (
+            "tasks",
+            "events",
+            "appointments",
+            "drafts",
+            "turns",
+            "calls",
+            "referrals",
+        ):
             conn.execute(f"DELETE FROM {table}")
+        for table in ("appointments", "referrals"):
+            for row in baseline.get(table, []):
+                # Column names come from the database schema, never a request
+                # or the stored JSON. Values remain bound SQL parameters.
+                columns = [
+                    c["name"]
+                    for c in conn.execute(f"PRAGMA table_info({table})")
+                    if c["name"] in row
+                ]
+                names = ",".join(f'"{column}"' for column in columns)
+                placeholders = ",".join("?" for _ in columns)
+                conn.execute(
+                    f"INSERT INTO {table} ({names}) VALUES ({placeholders})",
+                    [row[column] for column in columns],
+                )
         conn.execute(
             "UPDATE slots SET state = seed_state, "
             "occupancy_reason = CASE seed_state WHEN 'booked' THEN 'seeded_occupancy' ELSE NULL END"
+        )
+        conn.execute(
+            "UPDATE slots SET state='booked',occupancy_reason='appointment' "
+            "WHERE id IN (SELECT slot_id FROM appointments WHERE status IN ('booked','completed'))"
         )
     return {"ok": True, "speak": ""}

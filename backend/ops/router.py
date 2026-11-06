@@ -7,11 +7,12 @@ import hmac
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
 
 from . import admin, summary
+from .calls import DEFAULT_RECENT, MAX_RECENT, list_calls
 from .db import get_conn
 from .errors import OpsError
 from .state import build_state
@@ -164,8 +165,18 @@ def calls_history(conn: sqlite3.Connection = Depends(get_conn)):
     }
 
 
+@router.get("/calls")
+def calls_list(
+    recent: int = Query(DEFAULT_RECENT, ge=0, le=MAX_RECENT),
+    conn: sqlite3.Connection = Depends(get_conn),
+):
+    """All live calls plus the most recent finished ones, for the console's call list."""
+    return {"calls": list_calls(conn, recent), "speak": ""}
+
+
 @router.get("/calls/{call_id}/state")
-def calls_state(call_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+def call_state(call_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Full console state for one call. An unknown id is an error, never "the latest"."""
     state = build_state(conn, call_id)
     if state is None:
         raise OpsError("CALL_NOT_FOUND")

@@ -7,6 +7,8 @@ Mount in the app: `from backend import ops; ops.install(app)` (adds the router a
 | Route | Access | Notes |
 | --- | --- | --- |
 | `GET /calls/latest` | console | `{state, speak}`; `state` is null before any call; verification answers masked |
+| `GET /calls?recent=20` | console | `{calls: CallSummary[]}`: every live call (newest first), then the most recent finished calls (0-100). One snapshot, no secrets |
+| `GET /calls/{id}/state` | console | the same `State` as `/calls/latest`, for one call; unknown id is 404 `CALL_NOT_FOUND`, never "the latest" |
 | `GET /tasks?status=`, `POST /tasks/{id}/complete` | console | complete is idempotent |
 | `POST /admin/take-slot` | console | blocks one open slot as a simulated caller; does not touch drafts |
 | `POST /admin/reset` | console | `CALL_ACTIVE` while any call is live or a commit is pending |

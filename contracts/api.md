@@ -10,6 +10,11 @@ visits of exactly 30 minutes, against a simulated schedule. Specialists,
 referrals, returning patients, telehealth, holds, cancellation and rescheduling
 are stretch and have no routes in this contract.
 
+The [care-journeys data extension](care-journeys.md) adds schema v2, synthetic
+specialist/referral/history fixtures and Pydantic extension models. It documents
+the remaining backend, Om and Sid integration work. Its proposed new routes are
+not mounted; this document continues to describe the live primary-care API.
+
 ## Transport, access and common types
 
 - Base URL: `http://127.0.0.1:8000`, with the plan's unversioned paths.
