@@ -46,6 +46,15 @@ _EMERGENCY = [
     r"unconscious",
     r"passed out",
     r"seizure",
+    r"(?:can'?t|cannot) feel my (?:arm|arms|leg|legs|face|hand|hands)",
+    r"numb(?:ness)? (?:in|on) (?:my|one side|the)\b",
+    r"face (?:is )?drooping",
+    r"slurred speech",
+    r"(?:chest|heart) (?:is )?(?:tight|racing|pounding|crushing)",
+    r"tight(?:ness)? in my chest",
+    r"(?:feel|feeling|about to) (?:faint|pass out)",
+    r"fainted",
+    r"(?:coughing|vomiting|throwing up) (?:up )?blood",
     r"choking",
 ]
 _SELF_HARM = [

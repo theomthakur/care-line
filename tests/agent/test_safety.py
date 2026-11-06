@@ -116,6 +116,10 @@ def test_curly_apostrophes_are_handled() -> None:
         "my dad collapsed",
         "I want to end it all",
         "I don't want to live anymore",
+        "I can't feel my arm and my chest is tight",
+        "my heart is racing and I feel faint",
+        "I'm vomiting blood",
+        "her face is drooping and her speech is slurred",
     ],
 )
 def test_more_emergencies_are_caught(text: str) -> None:
@@ -128,6 +132,7 @@ def test_more_emergencies_are_caught(text: str) -> None:
         "I don't have chest pain, I just need a checkup",
         "I need to see someone about my golf stroke",
         "no chest pain, no shortness of breath",
+        "my chest isn't tight and I don't feel faint",
     ],
 )
 def test_these_are_not_emergencies(text: str) -> None:

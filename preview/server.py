@@ -15,6 +15,18 @@ from fake_backend import FakeBackend
 backend = FakeBackend()
 state = {"call_id": None, "providers": [], "excluded": [], "slots": [], "events": []}
 lock = asyncio.Lock()
+live_calls: set[str] = set()  # started by the voice agent and not yet finalized
+
+
+def _busy():
+    """Reset and sample replace the whole store, so never while a real call is live."""
+    return web.json_response(
+        {
+            "error": "CALL_ACTIVE",
+            "speak": "A call is in progress. Reset is refused. Add ?force=1 only if the call is stuck.",
+        },
+        status=409,
+    )
 
 
 def snapshot():
@@ -56,7 +68,10 @@ async def status(request):
 
 async def sample(request):
     global backend, state
+    if live_calls and request.query.get("force") != "1":
+        return _busy()
     async with lock:
+        live_calls.clear()
         backend = FakeBackend()
         state = {
             "call_id": None,
@@ -103,7 +118,10 @@ async def options(request):
 
 async def reset(request):
     global backend, state
+    if live_calls and request.query.get("force") != "1":
+        return _busy()
     async with lock:
+        live_calls.clear()
         backend = FakeBackend()
         state = {
             "call_id": None,
@@ -141,6 +159,7 @@ async def agent_route(request):
                 slots=[],
                 events=["Call started"],
             )
+            live_calls.add(r["call_id"])
             return web.json_response(r)
         if cid not in backend.calls:
             return web.json_response(
@@ -233,6 +252,7 @@ async def agent_route(request):
                 r = await backend.appointment(cid)
             elif path == "finalize":
                 r = await backend.finalize(cid)
+                live_calls.discard(cid)
                 state["events"].append("Call ended")
             else:
                 return web.json_response(
@@ -263,4 +283,5 @@ app.add_routes(
         web.get("/calls/{cid}/{action:.*}", agent_route),
     ]
 )
-web.run_app(app, host="127.0.0.1", port=8000, print=None)
+if __name__ == "__main__":
+    web.run_app(app, host="127.0.0.1", port=8000, print=None)
