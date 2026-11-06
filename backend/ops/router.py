@@ -7,8 +7,9 @@ import hmac
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Request
+from fastapi import APIRouter, Depends, FastAPI, Header, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 
 from . import admin, summary
 from .db import get_conn
@@ -16,7 +17,24 @@ from .errors import OpsError
 from .state import build_state
 from .tasks import CATEGORIES, complete_task, create_task, dedupe_key_for, list_tasks
 
-router = APIRouter()
+
+class OpsRoute(APIRoute):
+    """Render OpsError in the contract envelope here, so it survives a host app whose own
+    HTTPException handler would flatten it (core's ``create_app`` maps those to INVALID_REQUEST)."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def guarded(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except OpsError as exc:
+                return JSONResponse(exc.detail, status_code=exc.status_code)
+
+        return guarded
+
+
+router = APIRouter(route_class=OpsRoute)
 
 
 def install(app: FastAPI) -> None:
@@ -40,7 +58,7 @@ def install(app: FastAPI) -> None:
 def require_agent_key(
     request: Request, x_agent_key: str | None = Header(default=None)
 ) -> None:
-    """Agent routes need ``X-Agent-Key``; it is held by the agent, never by browser code."""
+    """The host's explicit agent key is authoritative; absent configuration fails closed."""
     expected = getattr(request.app.state, "agent_key", "")
     if (
         not expected

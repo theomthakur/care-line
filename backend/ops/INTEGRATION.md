@@ -1,7 +1,9 @@
 # Integration handoff: console + ops (Siddhant) → Aneesh, Om
 
-Branch `feat/siddhant-console-handoff`, draft PR #1. Contracts are unchanged: `contracts/` is byte-identical to `origin/booking-core` (c039929). I touched nothing in `src/`, `backend/core/`, `data/` or `contracts/`.
-As of this note, `booking-core` has contracts only (no core code yet), so ops has only run against `contracts/schema.sql` plus a dev seed.
+Branch `feat/siddhant-console-handoff`, draft PR #1. Contracts are unchanged: `contracts/` is byte-identical to `origin/booking-core`. I touched nothing in `src/`, `backend/core/`, `data/` or `contracts/`.
+Verified by mounting `ops.router` in core's `create_app` (read-only copy of `booking-core` d6722fb) and driving a real call: verify, providers, select, availability, slot, preview, armed, confirm, then `/calls/latest`, take-slot, tasks, followup, finalize, reset.
+
+Known naming difference: core emits the event `appointment_booked`, the contract examples say `booked`. The console handles both.
 
 ## 1. Route ownership (please confirm)
 | Route | Owner | Note |
@@ -12,25 +14,19 @@ As of this note, `booking-core` has contracts only (no core code yet), so ops ha
 
 Duplicate paths would silently shadow each other, so whoever mounts both routers should fail loudly on a duplicate.
 
-## 2. Mounting and DB connection (Aneesh, owner of `backend/main.py` and `db.py`)
+## 2. Mounting and DB connection (verified against `origin/booking-core` d6722fb)
+Core's `create_app(ops_router=...)` already exists. Mount ops with:
 ```python
 from backend import ops
-ops.install(app)   # adds the router AND the contract error envelope {error, speak}
-app.state.db_path = DB_PATH          # or: app.state.get_conn = lambda: your_connection()
+app = create_app(ops_router=ops.router)     # not ops.install(): core owns the app's error handlers
 ```
-- Ops opens its own short-lived connection per request with `PRAGMA foreign_keys=ON`, autocommit, explicit `BEGIN` / `BEGIN IMMEDIATE`. If you pass `get_conn`, return an **autocommit** (`isolation_level=None`) connection, because ops manages transactions itself.
-- `install` registers handlers for `HTTPException` and `RequestValidationError`. They also apply to core routes in the same app, which is what `errors.md` wants (no framework validation arrays).
-- Tests and a throwaway DB: `backend/ops/dev_seed.py` (dev only, uses `contracts/schema.sql`). Replace it with `data/seed.py` when it exists.
-- Agent routes read `AGENT_KEY` (default `dev-agent-key`, same as Om's client).
+- Ops reads `app.state.db.path` (core's `Database`) and opens its own short-lived autocommit connection with `foreign_keys=ON`. Core's `db.connect()` is not used because its connections are not thread-portable, while FastAPI runs ops dependencies and handlers on different threads. Core's POST ingress middleware already serialises every ops write.
+- Ops errors are rendered inside the ops router (`OpsRoute`), so they survive core's `HTTPException` handler, which would otherwise turn `CALL_ACTIVE` / `TASK_NOT_FOUND` into `INVALID_REQUEST`.
+- Agent routes (`followup`, `finalize`) use `app.state.agent_key` when the host sets it (core fails closed when empty); otherwise `AGENT_KEY` / the dev key.
+- Standalone dev app: `backend/ops/dev_app.py` (unchanged).
 
-## 3. Pending-commit hook (Aneesh)
-`finalize` must wait for an in-flight confirm. Ops cannot know about it, so core registers a function:
-```python
-from backend.ops import summary
-summary.pending_commit = lambda call_id: <True while a confirm for call_id is running>
-```
-Finalize polls it for up to `summary.PENDING_WAIT_S` (3 s), then reads committed rows. If it is still pending, the outcome is `unknown` with `confirmation: null`. `/admin/reset` also refuses (`CALL_ACTIVE`) if it returns True for any call. Until core registers it, the default is "nothing pending".
-Also: for a verification lock, call `ops.tasks.create_task(conn, call_id, "verification_failed", detail, dedupe_key)` inside core's lock transaction (it reuses an open transaction). It is idempotent per `(call_id, dedupe_key)`.
+## 3. Pending-commit hook
+Not needed when mounted in core's `create_app`: its write-ingress lock serialises POSTs, so `finalize` and `/admin/reset` cannot start while a confirm is mid-commit. `summary.pending_commit` stays as an optional extra and defaults to "nothing pending". Core already writes its own `verification_failed` task on lock (`verification.py`); ops does not need to create it.
 
 ## 4. Escalation signals (Om + me; contract agreement item 6, still open)
 `ops.escalation.record_signal(conn, call_id, signal)` implements the consecutive counters (2 unanswered, 2 tool failures; success resets; one task per streak). **No route calls it**, because the contract defines no ingestion API and I won't invent one. Decision needed from Om and Aneesh: either
