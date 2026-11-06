@@ -324,6 +324,16 @@ class FakeBackend:
                     "error": "OUTSIDE_WINDOW",
                     "speak": "That date isn't valid. Which day would you like?",
                 }
+        if re.search(
+            r"\b(?:earliest|soonest|next available|first available|upcoming|any available|first opening)\b",
+            t,
+        ):
+            return {
+                "ok": True,
+                "dates": [today.isoformat(), (today + timedelta(days=14)).isoformat()],
+            }
+        if t == "today":
+            return {"ok": True, "dates": [today.isoformat()]}
         if "tomorrow" in t:
             return {"ok": True, "dates": [(today + timedelta(days=1)).isoformat()]}
         for i, w in enumerate(WEEKDAYS):

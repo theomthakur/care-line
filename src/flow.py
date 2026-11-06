@@ -187,6 +187,31 @@ class Flow:
         )
         if isinstance(res, str):
             return res
+        if not res.get("ok") and res.get("error") == "NO_AVAILABILITY":
+            # Offer genuine alternatives from the same provider and preferences;
+            # never infer availability from the fixture calendar.
+            window = await self._call(
+                self.backend.dates, self.call_id, "earliest available"
+            )
+            if isinstance(window, dict) and window.get("ok") and window.get("dates"):
+                bounds = sorted(window["dates"])
+                alt = await self._call(
+                    self.backend.availability,
+                    self.call_id,
+                    provider_id,
+                    bounds[0],
+                    bounds[-1],
+                    part_of_day,
+                )
+                if isinstance(alt, dict) and alt.get("ok") and alt.get("slots"):
+                    ids = ", ".join(
+                        f"{slot['slot_id']} = {slot['text']}" for slot in alt["slots"]
+                    )
+                    return line(
+                        "I don't see an opening for that day. The next available options are "
+                        + alt["speak"],
+                        f"Slot ids for prepare_appointment: {ids}. Offer only these, as a choice.",
+                    )
         if not res.get("ok"):
             return line(
                 res.get("speak", "I don't see an open time."),

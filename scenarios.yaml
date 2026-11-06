@@ -197,3 +197,16 @@ scenarios:
       Notices the digits are incomplete and asks again instead of guessing.
     tags:
       criterion: natural-conversation
+
+  - label: Earliest available appointment
+    instructions: |
+      PERSONA: Maya Torres, looking for primary care near ZIP 10019.
+      FACTS: Member digits 4417 and birth month April.
+      DO: Verify when asked, choose Dr. Omar Haddad, ask for the earliest available
+      appointment, choose an offered slot, and confirm only after the read-back.
+    agent_expectations: >
+      Searches the actual demo schedule across upcoming dates instead of demanding
+      a specific day. Offers available times, reads back the selected slot, and
+      reports a booking only after confirmation succeeds.
+    tags:
+      criterion: did-the-job

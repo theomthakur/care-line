@@ -322,3 +322,25 @@ async def test_call_restarts_if_backend_was_down_at_pickup() -> None:
     f.room = "r"  # start() failed earlier, so call_id is None
     await f.record_user_turn("hello")
     assert f.call_id
+
+
+async def test_earliest_available_looks_across_schedule(be: FakeBackend) -> None:
+    f = Flow(be)
+    await f.start("earliest")
+    await f.verify("4417", "April")
+    await f.find_providers("primary care", "10019")
+    answer = await f.find_slots("P2", "earliest available", "")
+    assert "S-P2-1112-0930" in answer
+    assert "Thursday" in answer
+
+
+async def test_no_tomorrow_slot_offers_next_actual_availability(
+    be: FakeBackend,
+) -> None:
+    f = Flow(be)
+    await f.start("tomorrow")
+    await f.verify("4417", "April")
+    await f.find_providers("primary care", "10019")
+    answer = await f.find_slots("P2", "tomorrow", "")
+    assert "S-P2-1112-0930" in answer
+    assert "Thursday" in answer

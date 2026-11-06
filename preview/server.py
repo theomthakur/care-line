@@ -50,7 +50,7 @@ def snapshot():
             (
                 {"confirmation": a["confirmation"], "description": a["speak"]}
                 for a in backend.appointments
-                if a["member"] == "Maya Torres"
+                if call.get("draft") and a.get("token") == call["draft"].get("token")
             ),
             None,
         ),

@@ -53,7 +53,7 @@ new patients for primary care only. Say so if someone has seen the doctor before
 for a specialist, and offer a follow-up request. Ask the ZIP, call find_network_providers,
 and explain the result, including a doctor you can't offer and why.
 
-Booking: ask for a day or time and call find_slots. Offer at most two times as a choice,
+Booking: when the caller asks for the earliest, soonest, next available, or upcoming opening, call find_slots with day="earliest available" instead of asking them to choose a date. For tomorrow, use day="tomorrow". Otherwise ask for a day or time and call find_slots. Offer at most two times as a choice,
 such as "Thursday at nine thirty or ten thirty?" Never read out a list. When they choose,
 call prepare_appointment. It reads the details back by itself and tells you whether the
 read-back finished. If it did not finish, say you will read it again. When it finished,
@@ -173,7 +173,7 @@ class MyAgent(Agent):
 
         Args:
             provider_id: A doctor id from find_network_providers, for example "P2".
-            day: The caller's words for the day, like "Thursday", "tomorrow" or "next Friday",
+            day: Use "earliest available" when asked for the earliest, soonest, next available, or upcoming appointment; otherwise use the caller's day, like "Thursday", "tomorrow" or "next Friday",
                 or an exact date as YYYY-MM-DD. Never work out the date yourself.
             part_of_day: "morning" or "afternoon" if the caller said so, otherwise empty.
         """
