@@ -293,3 +293,32 @@ def test_clear_yes(text: str) -> None:
 )
 def test_not_a_clear_yes(text: str) -> None:
     assert not is_clear_yes(text)
+
+
+async def test_unreadable_backend_answers_never_crash_or_book() -> None:
+    be = FakeBackend()
+    f = Flow(be)
+    await f.start("r")
+    await f.verify("4417", "April")
+    await f.find_providers("primary care", "10023")
+
+    async def ok_only(*a: object, **k: object) -> dict:
+        return {"ok": True}
+
+    be.confirm = ok_only  # type: ignore[method-assign]
+    f.token, f.armed = "t", True
+    out = await f.confirm()
+    assert "UNKNOWN OUTCOME" in out and f.booked is None
+
+    be.dates = lambda *a, **k: ok_only()  # type: ignore[method-assign]
+    assert "Which day" in await f.find_slots("P2", "Thursday")
+
+    be.providers = lambda *a, **k: ok_only()  # type: ignore[method-assign]
+    assert "couldn't find" in await f.find_providers("primary care", "10023")
+
+
+async def test_call_restarts_if_backend_was_down_at_pickup() -> None:
+    f = Flow(FakeBackend())
+    f.room = "r"  # start() failed earlier, so call_id is None
+    await f.record_user_turn("hello")
+    assert f.call_id

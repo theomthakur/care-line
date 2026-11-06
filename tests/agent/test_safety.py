@@ -102,3 +102,33 @@ def test_ordinary_calls_do_not_trigger(text: str) -> None:
 def test_curly_apostrophes_are_handled() -> None:
     assert check_safety("I can\u2019t breathe") is not None
     assert check_safety("I don\u2019t have chest pain") is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "no wait I'm having chest pain right now",
+        "I don't know if it's a heart attack, I have chest pain",
+        "I have no idea what to do, my chest pain is really bad",
+        "the bleeding won't stop",
+        "my throat is closing",
+        "I took too many pills",
+        "my dad collapsed",
+        "I want to end it all",
+        "I don't want to live anymore",
+    ],
+)
+def test_more_emergencies_are_caught(text: str) -> None:
+    assert check_safety(text) is not None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I don't have chest pain, I just need a checkup",
+        "I need to see someone about my golf stroke",
+        "no chest pain, no shortness of breath",
+    ],
+)
+def test_these_are_not_emergencies(text: str) -> None:
+    assert check_safety(text) is None

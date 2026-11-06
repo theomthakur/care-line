@@ -197,7 +197,11 @@ class MyAgent(Agent):
         read-back and the caller then said a clear yes. The system checks that for itself.
         Do not say it is booked until this returns a confirmation."""
         context.disallow_interruptions()  # the short write must finish once
-        result = await self.flow.confirm()
+        try:
+            result = await self.flow.confirm()
+        except Exception:
+            logger.exception("confirm failed unexpectedly")
+            result = ""  # falls through to the "nothing confirmed" line below
         prefix = "Say this, nearly as written: "
         if result.startswith(prefix):
             spoken = result[len(prefix) :].split(

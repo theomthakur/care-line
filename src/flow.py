@@ -47,6 +47,7 @@ class Flow:
     def __init__(self, backend: Backend) -> None:
         self.backend = backend
         self.call_id: str | None = None
+        self.room = ""
         self.verified = False
         self.provider_options: dict[str, str] = {}
         self.last_day = ""
@@ -72,14 +73,15 @@ class Flow:
         return res
 
     async def start(self, room: str) -> None:
+        self.room = room
         res = await self.backend.start_call(room)
         self.call_id = res["call_id"]
 
     async def record_user_turn(self, text: str) -> None:
         """Awaited before any tool runs, so confirmation always reads the newest turn."""
         try:
-            if not self.call_id:
-                raise BackendUnavailableError("The call could not be started")
+            if not self.call_id:  # the backend was down at pickup: try again now
+                await self.start(self.room)
             result = await self.backend.turn(self.call_id, "user", text)
             if not result.get("ok"):
                 raise BackendUnavailableError("The caller's turn could not be saved")
@@ -122,6 +124,8 @@ class Flow:
             return res
         if not res.get("ok"):
             return line(res.get("speak", "I couldn't find a match."))
+        if not res.get("providers"):
+            return line(res.get("speak", "I couldn't find a doctor that matches."))
         self.provider_options = {p["id"]: p["name"] for p in res["providers"]}
         sel = await self._call(
             self.backend.select, self.call_id, res["providers"][0]["id"]
@@ -165,7 +169,9 @@ class Flow:
                 d["speak"],
                 "Ask which date, then call find_slots again with the exact date.",
             )
-        dates = sorted(d["dates"])
+        dates = sorted(d.get("dates") or [])
+        if not dates:
+            return line(d.get("speak", "Which day would you like?"))
         self.last_day, self.last_part, self.last_provider = (
             day,
             part_of_day,
@@ -231,6 +237,8 @@ class Flow:
         return await self._after_confirm(res)
 
     async def _after_confirm(self, res: dict[str, Any]) -> str:
+        if res.get("ok") and not (res.get("confirmation") and res.get("speak")):
+            return await self._unknown_outcome()  # a success we cannot read is not one
         if res.get("ok"):
             self.booked = res["confirmation"]
             return line(

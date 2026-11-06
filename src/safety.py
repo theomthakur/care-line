@@ -30,7 +30,16 @@ _EMERGENCY = [
     r"short(?:ness)? of breath",
     r"not breathing",
     r"heart attack",
-    r"stroke",
+    r"(?<!golf )(?<!breast)(?<!back)(?<!swim )stroke",
+    r"throat (?:is |was )?(?:closing|swelling)",
+    r"allergic reaction",
+    r"anaphyla\w+",
+    r"(?:bleeding|blood) (?:won'?t|will not|isn'?t going to) stop",
+    r"can'?t stop the bleeding",
+    r"too many (?:pills|tablets|meds|medications)",
+    r"collapsed",
+    r"unresponsive",
+    r"(?:isn'?t|is not|not|stopped) (?:moving|responding)",
     r"overdos(?:e|ed|ing)",
     r"severe bleeding",
     r"bleeding (?:heavily|badly|a lot)",
@@ -44,6 +53,10 @@ _SELF_HARM = [
     r"end my life",
     r"suicid(?:e|al)",
     r"want to die",
+    r"end it all",
+    r"(?:don'?t|do not) want to (?:live|be here|be alive)(?: anymore)?",
+    r"better off dead",
+    r"no reason to live",
     r"hurt myself",
     r"harm myself",
 ]
@@ -90,9 +103,22 @@ class Verdict:
     task_detail: str
 
 
+# A new clause resets a negation: "no wait, I'm having chest pain" is not negated.
+_CLAUSE_BREAK = re.compile(
+    r"[,.;!?]|\b(?:but|wait|actually|however|though|and|so|because)\b", re.I
+)
+# "I don't know if it's a stroke" doubts the cause. It does not deny the symptom.
+_DOUBT = re.compile(
+    r"\b(?:(?:don'?t|do not|didn'?t|not) (?:know|sure|think)|no idea|unsure|not certain)\b",
+    re.I,
+)
+
+
 def _negated(before: str) -> bool:
-    """A negation within the last four words before the phrase."""
-    words = before.split()[-4:]
+    """A negation within the last four words of the same clause, before the phrase."""
+    clause = _CLAUSE_BREAK.split(before)[-1]
+    clause = _DOUBT.sub(" ", clause)
+    words = clause.split()[-4:]
     return bool(_NEGATION.search(" ".join(words)))
 
 
