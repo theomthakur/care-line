@@ -256,7 +256,20 @@ async def test_a_bare_weekday_late_in_the_week_asks_which_date() -> None:
 
 
 @pytest.mark.parametrize(
-    "text", ["yes", "Yes.", "yeah", "Yes please", "sure", "go ahead", "book it"]
+    "text",
+    [
+        "yes",
+        "Yes.",
+        "yeah",
+        "Yes please",
+        "sure",
+        "go ahead",
+        "book it",
+        "Yes, please book it.",
+        "yes, go ahead",
+        "Yes, that's right",
+        "yes that works, thanks",
+    ],
 )
 def test_clear_yes(text: str) -> None:
     assert is_clear_yes(text)
@@ -271,6 +284,10 @@ def test_clear_yes(text: str) -> None:
         "yes, if it's free",
         "maybe",
         "yes and change it",
+        "yes, please book it but later",
+        "yes, book it for Friday instead",
+        "yes please, wait",
+        "no, please don't book it",
         "",
     ],
 )

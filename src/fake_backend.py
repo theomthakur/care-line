@@ -92,10 +92,19 @@ _NUMWORDS = {
     "nine": "9",
 }
 
+_YES_WORD = (
+    r"(?:yes|yeah|yep|yup|sure|ok|okay|correct|right|that'?s right|that'?s correct|"
+    r"go ahead|please do|book it|confirm|confirmed|sounds good|perfect|absolutely|definitely)"
+)
+# Only these confirming phrases may follow a yes. Anything else ("but later", "if it's
+# free", "and change it") is not a clean yes and falls through to no booking.
+_YES_TAIL = (
+    r"(?:please|thanks|thank you|go ahead|book it|please book it|book that|"
+    r"please book that|please go ahead|that works|that'?s fine|that'?s right|"
+    r"that'?s correct|that'?s good)"
+)
 _YES = re.compile(
-    r"^(?:yes|yeah|yep|yup|sure|ok|okay|correct|right|that'?s right|go ahead|please do|"
-    r"book it|confirm|confirmed|sounds good|perfect|absolutely|definitely)"
-    r"(?:\s+please)?[\s.!]*$",
+    rf"^{_YES_WORD}(?:[\s,]+{_YES_TAIL})*[\s.!]*$",
     re.I,
 )
 
