@@ -63,7 +63,12 @@ def test_someone_elses_unclear_mention_asks_once(text: str) -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["I want to kill myself", "I'm thinking about suicide", "I want to die", "I might hurt myself"],
+    [
+        "I want to kill myself",
+        "I'm thinking about suicide",
+        "I want to die",
+        "I might hurt myself",
+    ],
 )
 def test_self_harm_gets_the_988_line(text: str) -> None:
     v = check_safety(text)
@@ -95,5 +100,5 @@ def test_ordinary_calls_do_not_trigger(text: str) -> None:
 
 
 def test_curly_apostrophes_are_handled() -> None:
-    assert check_safety("I can’t breathe") is not None
-    assert check_safety("I don’t have chest pain") is None
+    assert check_safety("I can\u2019t breathe") is not None
+    assert check_safety("I don\u2019t have chest pain") is None

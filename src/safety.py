@@ -115,7 +115,7 @@ def _classify(text: str, match: re.Match[str]) -> Kind | None:
 
 def check_safety(text: str) -> Verdict | None:
     """Return what to say for an emergency or self-harm mention, or None."""
-    t = " ".join(text.replace("’", "'").split())
+    t = " ".join(text.replace("\u2019", "'").split())
     if not t:
         return None
 

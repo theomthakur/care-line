@@ -11,7 +11,13 @@ until the real backend is merged (turn it OFF for the 5:30 checkpoint).
 import asyncio
 import logging
 
-from livekit.agents import Agent, ConversationItemAddedEvent, RunContext, function_tool, get_job_context
+from livekit.agents import (
+    Agent,
+    ConversationItemAddedEvent,
+    RunContext,
+    function_tool,
+    get_job_context,
+)
 from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.llm import ChatContext, ChatMessage, StopResponse
 
@@ -84,7 +90,9 @@ class MyAgent(Agent):
         ctx = get_job_context()
         try:
             await self.flow.start(ctx.room.name)
-        except Exception:  # the greeting must still play if the backend is slow to start
+        except (
+            Exception
+        ):  # the greeting must still play if the backend is slow to start
             logger.exception("could not start a backend call")
         self.session.on("conversation_item_added", self._on_item)
         ctx.add_shutdown_callback(self.flow.finalize)
@@ -102,7 +110,9 @@ class MyAgent(Agent):
             task.add_done_callback(self._background.discard)
 
     # ---- before the model sees the turn ----
-    async def on_user_turn_completed(self, turn_ctx: ChatContext, new_message: ChatMessage) -> None:
+    async def on_user_turn_completed(
+        self, turn_ctx: ChatContext, new_message: ChatMessage
+    ) -> None:
         text = (new_message.text_content or "").strip()
         if not text:
             raise StopResponse()
@@ -121,7 +131,9 @@ class MyAgent(Agent):
 
     # ---- the six tools. The docstring is what the model reads. ----
     @function_tool
-    async def verify_demo_member(self, context: RunContext, digits: str, birth_month: str) -> str:
+    async def verify_demo_member(
+        self, context: RunContext, digits: str, birth_month: str
+    ) -> str:
         """Verify the caller against the demo member records. Call this when the caller
         has given the last four digits of their member number and their birth month.
         Never say which part was wrong if it fails.
@@ -133,7 +145,9 @@ class MyAgent(Agent):
         return await self.flow.verify(digits, birth_month)
 
     @function_tool
-    async def find_network_providers(self, context: RunContext, specialty: str, zip_code: str) -> str:
+    async def find_network_providers(
+        self, context: RunContext, specialty: str, zip_code: str
+    ) -> str:
         """Find in-network doctors near a ZIP code for the verified caller. Also returns what
         the plan says about the preventive visit. Only primary care is available.
 
@@ -144,7 +158,9 @@ class MyAgent(Agent):
         return await self.flow.find_providers(specialty, zip_code)
 
     @function_tool
-    async def find_slots(self, context: RunContext, provider_id: str, day: str, part_of_day: str = "") -> str:
+    async def find_slots(
+        self, context: RunContext, provider_id: str, day: str, part_of_day: str = ""
+    ) -> str:
         """Find open appointment times with one doctor on a day. The backend resolves the day.
 
         Args:
@@ -156,7 +172,9 @@ class MyAgent(Agent):
         return await self.flow.find_slots(provider_id, day, part_of_day)
 
     @function_tool
-    async def prepare_appointment(self, context: RunContext, slot_id: str) -> str | None:
+    async def prepare_appointment(
+        self, context: RunContext, slot_id: str
+    ) -> str | None:
         """Choose one offered time and read the appointment back to the caller. This reads the
         details aloud by itself and waits for the caller's answer. Never book anything here.
 
@@ -174,7 +192,9 @@ class MyAgent(Agent):
         return await self.flow.confirm()
 
     @function_tool
-    async def create_followup(self, context: RunContext, category: str, detail: str) -> str:
+    async def create_followup(
+        self, context: RunContext, category: str, detail: str
+    ) -> str:
         """File a request for the support team when you cannot finish the caller's request:
         a question outside your job, a caller who wants a person, nothing open, or a
         specialist. Then give the caller the reference.
