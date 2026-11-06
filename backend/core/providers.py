@@ -113,7 +113,7 @@ def search_providers(db, call_id, specialty, zip_code):
             "excluded": excluded,
             "evidence": [evidence],
             "request_version": version,
-            "speak": f"The nearest eligible providers in our list are {names}. Which would you prefer?",
+            "speak": f"I found {names} near you. Which would you like?",
         }
 
 
@@ -137,5 +137,5 @@ def select_provider(db, call_id, provider_id):
             "evidence": evidence,
             "evidence_id": evidence["id"],
             "request_version": version,
-            "speak": f"You've selected {provider['name']}. {evidence['text']} What day works for you?",
+            "speak": f"Good choice, {provider['name']}. What day works for you?",
         }

@@ -21,6 +21,9 @@ EMERGENCY_LINE = (
     "This sounds urgent. Please hang up and call 911 now. "
     "I can't place the call for you, so please call right away."
 )
+EMERGENCY_REMINDER = (
+    "Please call 911 right away. I'm here if there's anything else I can do."
+)
 SELF_HARM_LINE = "Please call or text 988 now to reach someone who can help."
 ASK_LINE = "Is that happening right now?"
 

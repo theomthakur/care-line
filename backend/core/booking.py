@@ -156,7 +156,7 @@ def preview_booking(db, call_id):
         provider = conn.execute(
             "SELECT name FROM providers WHERE id=?", (slot["provider_id"],)
         ).fetchone()
-        read_back = f"{member['display_name']}, this is a new-patient primary care visit, in person, with {provider['name']} on {spoken_time(slot['starts_at'])}. Would you like me to book it?"
+        read_back = f"{member['display_name']}, I have you for a new-patient visit, in person, with {provider['name']} on {spoken_time(slot['starts_at'])}. Shall I book it?"
         token = secrets.token_urlsafe(32)
         user = latest_user(conn, call_id)
         conn.execute(
@@ -248,7 +248,7 @@ def confirmation_response(conn, appointment):
     phone = ", ".join(say_digits(group) for group in result["phone"].split("-"))
     return {
         "appointment": result,
-        "speak": f"Your appointment with {result['doctor']} is booked for {result['when']}. Your confirmation is M G, A P T, {digits}; the office number is {phone}.",
+        "speak": f"You're all booked with {result['doctor']} for {result['when']}. Your confirmation number is M G, A P T, {digits}. The office number is {phone}.",
     }
 
 
