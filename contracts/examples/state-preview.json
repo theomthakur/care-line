@@ -1,0 +1,140 @@
+{
+  "state": {
+    "call_id": "c_01",
+    "status": "live",
+    "verified": true,
+    "member": {
+      "name": "Maya T.",
+      "id_masked": "***4417",
+      "plan": "Gold 2026",
+      "network": "METRO",
+      "active": true
+    },
+    "request": {
+      "version": 3,
+      "specialty": "primary care",
+      "zip": "10023"
+    },
+    "turns": [
+      {
+        "seq": 1,
+        "role": "user",
+        "text": "[Demo verification details redacted]",
+        "received_at": "2026-11-06T21:00:02Z",
+        "t": 2.0
+      },
+      {
+        "seq": 2,
+        "role": "assistant",
+        "text": "Thank you, Maya. Your demo details are verified.",
+        "received_at": "2026-11-06T21:00:05Z",
+        "t": 5.0
+      },
+      {
+        "seq": 3,
+        "role": "user",
+        "text": "Find a new-patient primary care doctor near 10023 and book a visit.",
+        "received_at": "2026-11-06T21:00:12Z",
+        "t": 12.0
+      }
+    ],
+    "providers": [
+      {
+        "id": "P2",
+        "name": "Dr. Omar Haddad",
+        "specialty": "primary care",
+        "zip": "10023",
+        "phone": "212-555-0102",
+        "accepting_new_patients": true
+      },
+      {
+        "id": "P4",
+        "name": "Westside Family Medicine",
+        "specialty": "primary care",
+        "zip": "10024",
+        "phone": "212-555-0104",
+        "accepting_new_patients": true
+      }
+    ],
+    "excluded": [
+      {
+        "id": "P1",
+        "name": "Dr. Lena Park",
+        "reason_code": "VISIT_TYPE_UNAVAILABLE",
+        "reason": "not accepting new patients"
+      },
+      {
+        "id": "P3",
+        "name": "Dr. Grace Liu",
+        "reason_code": "NOT_BOOKABLE",
+        "reason": "out of network"
+      }
+    ],
+    "selected": "P2",
+    "evidence": [
+      {
+        "id": "GOLD-PREV",
+        "title": "Preventive care",
+        "text": "One annual preventive visit with an in-network primary care provider is covered at no cost share when billed as preventive. Other services during the visit may be billed separately."
+      }
+    ],
+    "offered_slots": [
+      {
+        "slot_id": "S-P2-1113-1430",
+        "provider_id": "P2",
+        "starts_at": "2026-11-13T19:30:00Z",
+        "ends_at": "2026-11-13T20:00:00Z",
+        "timezone": "America/New_York",
+        "text": "Friday, November 13, 2026 at 2:30 PM Eastern time"
+      },
+      {
+        "slot_id": "S-P2-1113-1500",
+        "provider_id": "P2",
+        "starts_at": "2026-11-13T20:00:00Z",
+        "ends_at": "2026-11-13T20:30:00Z",
+        "timezone": "America/New_York",
+        "text": "Friday, November 13, 2026 at 3:00 PM Eastern time"
+      }
+    ],
+    "draft": {
+      "slot_id": "S-P2-1113-1500",
+      "revision": 1,
+      "status": "preview",
+      "armed_seq": null,
+      "expires_at": null
+    },
+    "appointment": null,
+    "day_slots": [
+      {
+        "slot_id": "S-P2-1113-1430",
+        "starts_at": "2026-11-13T19:30:00Z",
+        "ends_at": "2026-11-13T20:00:00Z",
+        "text": "Friday, November 13, 2026 at 2:30 PM Eastern time",
+        "state": "open",
+        "offered": true,
+        "selected": false
+      },
+      {
+        "slot_id": "S-P2-1113-1500",
+        "starts_at": "2026-11-13T20:00:00Z",
+        "ends_at": "2026-11-13T20:30:00Z",
+        "text": "Friday, November 13, 2026 at 3:00 PM Eastern time",
+        "state": "open",
+        "offered": true,
+        "selected": true
+      }
+    ],
+    "tasks": [],
+    "summary": null,
+    "events": [
+      "call_created",
+      "verified",
+      "providers_searched",
+      "provider_selected",
+      "availability_offered",
+      "slot_selected",
+      "preview_created"
+    ]
+  },
+  "speak": ""
+}

@@ -1,0 +1,7 @@
+{
+  "status": "armed",
+  "armed_seq": 3,
+  "armed_at": "2026-11-06T21:00:40Z",
+  "expires_at": "2026-11-06T21:02:10Z",
+  "speak": "Please say yes if you want that exact simulated appointment."
+}

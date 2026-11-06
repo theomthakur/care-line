@@ -1,0 +1,43 @@
+{
+  "providers": [
+    {
+      "id": "P2",
+      "name": "Dr. Omar Haddad",
+      "specialty": "primary care",
+      "zip": "10023",
+      "phone": "212-555-0102",
+      "accepting_new_patients": true
+    },
+    {
+      "id": "P4",
+      "name": "Westside Family Medicine",
+      "specialty": "primary care",
+      "zip": "10024",
+      "phone": "212-555-0104",
+      "accepting_new_patients": true
+    }
+  ],
+  "excluded": [
+    {
+      "id": "P1",
+      "name": "Dr. Lena Park",
+      "reason_code": "VISIT_TYPE_UNAVAILABLE",
+      "reason": "not accepting new patients"
+    },
+    {
+      "id": "P3",
+      "name": "Dr. Grace Liu",
+      "reason_code": "NOT_BOOKABLE",
+      "reason": "out of network"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "GOLD-PREV",
+      "title": "Preventive care",
+      "text": "One annual preventive visit with an in-network primary care provider is covered at no cost share when billed as preventive. Other services during the visit may be billed separately."
+    }
+  ],
+  "request_version": 1,
+  "speak": "Dr. Omar Haddad and Westside Family Medicine are eligible options nearest in our list. Dr. Park isn't accepting new patients, and Dr. Liu is out of your network."
+}

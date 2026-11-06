@@ -1,0 +1,5 @@
+{
+  "error": "VERIFICATION_FAILED",
+  "speak": "Those details did not match. Please try the four digits and birth month again.",
+  "attempts_remaining": 2
+}
