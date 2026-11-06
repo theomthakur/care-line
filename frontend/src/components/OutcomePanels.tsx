@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -18,7 +18,7 @@ import { ApiError, completeTask } from "../api";
 import { bookingPhase, eventView, progress } from "../derive";
 import { shortClock, slotDay, slotTime } from "../format";
 import type { CallState, DaySlot, SummaryOutcome, Task } from "../types";
-import { Card, Chip, Empty, InlineError, Na, Spinner } from "./ui";
+import { Card, Chip, InlineError, Na, Spinner } from "./ui";
 
 function useCountdown(iso: string | null | undefined, on: boolean): number | null {
   const [now, setNow] = useState(() => Date.now());
@@ -158,8 +158,16 @@ export function SlotList({ s }: { s: CallState }) {
     days.set(k, [...(days.get(k) ?? []), d]);
   }
   const provider = s.providers.find((p) => p.id === s.selected);
+  const box = useRef<HTMLDivElement>(null);
+  const focusId = s.day_slots.find((d) => d.selected)?.slot_id ?? s.day_slots.find((d) => d.offered)?.slot_id;
+  // Long days scroll inside the card; bring the chosen or first offered time into view when it changes.
+  useEffect(() => {
+    const el = focusId ? box.current?.querySelector<HTMLElement>(`[data-slot="${focusId}"]`) : null;
+    if (el && box.current) box.current.scrollTop = Math.max(0, el.offsetTop - 56);
+  }, [focusId]);
   return (
     <Card title="Schedule" icon={<CalendarClock size={15} />} meta={provider ? provider.name : "Simulated provider schedule"}>
+      <div ref={box} className="slot-scroll">
       {s.day_slots.length === 0 ? (
         <span className="muted">Slots for the selected doctor appear once times are offered.</span>
       ) : (
@@ -168,7 +176,7 @@ export function SlotList({ s }: { s: CallState }) {
             <div className="section-label">{day}</div>
             <ul>
               {list.map((d) => (
-                <li key={d.slot_id} className={`slot ${d.state} ${d.selected ? "selected" : ""}`}>
+                <li key={d.slot_id} data-slot={d.slot_id} className={`slot ${d.state} ${d.selected ? "selected" : ""}`}>
                   <span className="slot-ico" aria-hidden="true" />
                   <span className="time">{slotTime(d.starts_at)}</span>
                   <span className="tags">
@@ -182,6 +190,7 @@ export function SlotList({ s }: { s: CallState }) {
           </div>
         ))
       )}
+      </div>
     </Card>
   );
 }
@@ -267,7 +276,7 @@ export function HandoffPanel({ s, canAct, onChanged }: { s: CallState; canAct: b
   return (
     <Card title="Handoff" icon={<HandHeart size={15} />} meta={s.tasks.length ? (open ? `${open} open` : "All complete") : undefined}>
       {s.tasks.length === 0 ? (
-        <Empty icon={<ClipboardList size={18} />} title="No handoff needed">A packet is saved here when the call needs a person, such as a requested callback, failed verification or no open times.</Empty>
+        <span className="muted">No handoff needed. A packet is saved here when the call needs a person: a requested callback, failed verification or no open times.</span>
       ) : (
         s.tasks.map((t) => <Packet key={t.task_id} t={t} canAct={canAct} onChanged={onChanged} />)
       )}

@@ -140,10 +140,11 @@ function Workspace({ s, canAct, onChanged, stale }: { s: CallState; canAct: bool
           <div className="span-all"><BookingCard s={s} /></div>
           {s.tasks.length > 0 && <div className="span-all"><HandoffPanel s={s} canAct={canAct} onChanged={onChanged} /></div>}
           <SummaryPanel s={s} />
+          {s.tasks.length === 0 && <HandoffPanel s={s} canAct={canAct} onChanged={onChanged} />}
+          {/* Kept near the top: the presenter taps this mid-call, so it must not sit below the fold. */}
+          <div className="span-all"><DemoControls s={s} canAct={canAct} onChanged={onChanged} /></div>
           <SlotList s={s} />
           <ActivityTimeline s={s} />
-          {s.tasks.length === 0 && <HandoffPanel s={s} canAct={canAct} onChanged={onChanged} />}
-          <div className="span-all"><DemoControls s={s} canAct={canAct} onChanged={onChanged} /></div>
         </div>
       </main>
     </>
