@@ -18,7 +18,10 @@ Duplicate paths would silently shadow each other, so whoever mounts both routers
 Core's `create_app(ops_router=...)` already exists. Mount ops with:
 ```python
 from backend import ops
-app = create_app(ops_router=ops.router)     # not ops.install(): core owns the app's error handlers
+
+app = create_app(
+    ops_router=ops.router
+)  # not ops.install(): core owns the app's error handlers
 ```
 - Ops reads `app.state.db.path` (core's `Database`) and opens its own short-lived autocommit connection with `foreign_keys=ON`. Core's `db.connect()` is not used because its connections are not thread-portable, while FastAPI runs ops dependencies and handlers on different threads. Core's POST ingress middleware already serialises every ops write.
 - Ops errors are rendered inside the ops router (`OpsRoute`), so they survive core's `HTTPException` handler, which would otherwise turn `CALL_ACTIVE` / `TASK_NOT_FOUND` into `INVALID_REQUEST`.
