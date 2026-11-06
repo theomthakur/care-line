@@ -59,6 +59,17 @@ def _member(conn: sqlite3.Connection, member_id: str | None, today: str) -> dict
     }
 
 
+def mask_turn(
+    role: str, text: str, received_at: str, unresolved: bool, boundary: str | None
+) -> str:
+    """Hide verification answers: any caller turn that looks like digits or a birth
+    month while the call is unverified, or at/before the moment verification resolved."""
+    in_window = unresolved or (boundary is not None and received_at <= boundary)
+    if role == "user" and in_window and _SENSITIVE.search(text):
+        return REDACTED
+    return text
+
+
 def _turns(
     conn: sqlite3.Connection, call: sqlite3.Row, events: list[sqlite3.Row]
 ) -> list[dict]:
@@ -75,12 +86,7 @@ def _turns(
         "SELECT seq, role, text, received_at FROM turns WHERE call_id = ? ORDER BY seq",
         (call["id"],),
     ):
-        text = t["text"]
-        in_window = unresolved or (
-            boundary is not None and t["received_at"] <= boundary
-        )
-        if t["role"] == "user" and in_window and _SENSITIVE.search(text):
-            text = REDACTED
+        text = mask_turn(t["role"], t["text"], t["received_at"], unresolved, boundary)
         secs = (clock.parse_utc(t["received_at"]) - created).total_seconds()
         out.append(
             {
