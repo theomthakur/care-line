@@ -23,4 +23,5 @@ if not DB_PATH.exists():
 
 app = FastAPI(title="Care Line ops (dev)")
 app.state.db_path = DB_PATH
+app.state.agent_key = os.getenv("MEMBERGUIDE_AGENT_KEY", "")
 install(app)

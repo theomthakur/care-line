@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import hmac
-import os
 import sqlite3
 from typing import Any
 
@@ -38,10 +37,16 @@ def install(app: FastAPI) -> None:
     )
 
 
-def require_agent_key(x_agent_key: str | None = Header(default=None)) -> None:
+def require_agent_key(
+    request: Request, x_agent_key: str | None = Header(default=None)
+) -> None:
     """Agent routes need ``X-Agent-Key``; it is held by the agent, never by browser code."""
-    expected = os.getenv("AGENT_KEY", "dev-agent-key")
-    if not x_agent_key or not hmac.compare_digest(x_agent_key, expected):
+    expected = getattr(request.app.state, "agent_key", "")
+    if (
+        not expected
+        or not x_agent_key
+        or not hmac.compare_digest(x_agent_key, expected)
+    ):
         raise OpsError("UNAUTHORIZED")
 
 

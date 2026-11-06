@@ -26,7 +26,7 @@ class Session:
 
 
 async def test_http_500_cannot_become_success():
-    client = HttpBackend()
+    client = HttpBackend(agent_key="test-key")
     client._session = Session()  # type: ignore[assignment]
     with pytest.raises(BackendUnavailableError):
         await client._post("/calls", {})

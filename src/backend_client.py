@@ -13,8 +13,12 @@ are agreed in contracts/ at 4:00. If a name changes there, change it here only.
 
 from __future__ import annotations
 
+import calendar
 import os
+import re
+from datetime import date, datetime, timedelta
 from typing import Any, Protocol
+from uuid import uuid4
 
 import aiohttp
 
@@ -62,9 +66,14 @@ class HttpBackend:
         self.base_url = (
             base_url or os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
         ).rstrip("/")
-        self._headers = {
-            "X-Agent-Key": agent_key or os.getenv("AGENT_KEY", "dev-agent-key")
-        }
+        key = (
+            agent_key
+            if agent_key is not None
+            else os.getenv("MEMBERGUIDE_AGENT_KEY", "")
+        )
+        if not key:
+            raise BackendUnavailableError("MEMBERGUIDE_AGENT_KEY is required")
+        self._headers = {"X-Agent-Key": key}
         self._session: aiohttp.ClientSession | None = None
 
     def _http(self) -> aiohttp.ClientSession:
@@ -128,13 +137,30 @@ class HttpBackend:
     async def verify(
         self, call_id: str, digits: str, birth_month: str
     ) -> dict[str, Any]:
+        value = str(birth_month).strip().lower()
+        months = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
+        months.update(
+            {name.lower(): i for i, name in enumerate(calendar.month_abbr) if name}
+        )
+        month = int(value) if value.isdigit() else months.get(value)
+        if month not in range(1, 13):
+            return {
+                "ok": False,
+                "error": "INVALID_REQUEST",
+                "speak": "Please tell me your birth month again.",
+            }
         return await self._post(
             f"/calls/{call_id}/verify",
-            {"member_digits": digits, "birth_month": birth_month},
+            {"member_digits": digits, "birth_month": month},
         )
 
     async def turn(self, call_id: str, role: str, text: str) -> dict[str, Any]:
-        return await self._post(f"/calls/{call_id}/turn", {"role": role, "text": text})
+        payload = {"client_turn_id": uuid4().hex, "role": role, "text": text}
+        try:
+            return await self._post(f"/calls/{call_id}/turn", payload)
+        except BackendUnavailableError:
+            # The first write may have committed; retry with the SAME delivery ID.
+            return await self._post(f"/calls/{call_id}/turn", payload)
 
     async def providers(
         self, call_id: str, specialty: str, zip_code: str
@@ -149,7 +175,90 @@ class HttpBackend:
         )
 
     async def dates(self, call_id: str, text: str) -> dict[str, Any]:
-        return await self._post(f"/calls/{call_id}/dates", {"text": text})
+        text = text.strip().lower()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+            try:
+                date.fromisoformat(text)
+            except ValueError:
+                return {
+                    "ok": False,
+                    "speak": "That date is invalid. Please choose another day.",
+                }
+            return {
+                "ok": True,
+                "candidates": [{"date": text}],
+                "needs_clarification": False,
+            }
+        now = await self._get("/now")
+        today = date.fromisoformat(now["business_date"])
+        if re.search(
+            r"\b(?:earliest|soonest|next available|first available|upcoming|any available|first opening)\b",
+            text,
+        ):
+            return {
+                "ok": True,
+                "candidates": [
+                    {"date": today.isoformat()},
+                    {"date": (today + timedelta(days=14)).isoformat()},
+                ],
+                "needs_clarification": False,
+            }
+        match = re.search(
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b",
+            text,
+        )
+        if match:
+            try:
+                value = (
+                    datetime.strptime(
+                        f"{match.group(1)} {match.group(2)} {match.group(3) or today.year}",
+                        "%B %d %Y",
+                    )
+                    .date()
+                    .isoformat()
+                )
+            except ValueError:
+                return {
+                    "ok": False,
+                    "speak": "That date is invalid. Please choose another day.",
+                }
+            return {
+                "ok": True,
+                "candidates": [{"date": value}],
+                "needs_clarification": False,
+            }
+        word = next(
+            (
+                w
+                for w in (
+                    "monday",
+                    "tuesday",
+                    "wednesday",
+                    "thursday",
+                    "friday",
+                    "saturday",
+                    "sunday",
+                    "today",
+                    "tomorrow",
+                )
+                if re.search(r"\b" + w + r"\b", text)
+            ),
+            None,
+        )
+        if not word:
+            return {"ok": False, "speak": "Which day would you like?"}
+        which = (
+            "next"
+            if re.search(r"\bnext\b", text)
+            else "this"
+            if re.search(r"\bthis\b", text)
+            else "unspecified"
+        )
+        if word in ("today", "tomorrow"):
+            which = "unspecified"
+        return await self._post(
+            f"/calls/{call_id}/dates", {"weekday": word, "which": which}
+        )
 
     async def availability(
         self,
@@ -162,10 +271,9 @@ class HttpBackend:
         return await self._post(
             f"/calls/{call_id}/availability",
             {
-                "provider_id": provider_id,
                 "date_from": date_from,
                 "date_to": date_to,
-                "part_of_day": part_of_day,
+                "part_of_day": part_of_day or "any",
             },
         )
 

@@ -58,6 +58,7 @@ def stage(conn):
 def app(db_path):
     a = FastAPI()
     a.state.db_path = db_path
+    a.state.agent_key = "dev-agent-key"
     ops.install(a)
     return a
 

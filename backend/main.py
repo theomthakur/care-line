@@ -30,6 +30,7 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
 
     app = FastAPI(title="MemberGuide synthetic booking service", lifespan=lifespan)
     app.state.db = database
+    app.state.db_path = database.path
     app.state.write_ingress = asyncio.Lock()
     # Fail closed if configuration is missing. Never invent or log a fallback key.
     app.state.agent_key = (
@@ -74,8 +75,9 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException):
-        error = DomainError("INVALID_REQUEST")
-        return JSONResponse(error.body, status_code=exc.status_code)
+        from backend.ops.errors import envelope
+
+        return envelope(exc)
 
     @app.exception_handler(Exception)
     async def unexpected_error(request: Request, exc: Exception):
@@ -85,8 +87,9 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
         return JSONResponse(error.body, status_code=error.status)
 
     app.include_router(router)
-    if ops_router is not None:
-        app.include_router(ops_router)
+    if ops_router is None:
+        from backend.ops.router import router as ops_router
+    app.include_router(ops_router)
     return app
 
 

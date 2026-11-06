@@ -84,6 +84,8 @@ class MyAgent(Agent):
         )
         self.flow = Flow(make_backend())
         self._background: set[asyncio.Task[None]] = set()
+        self._speech_generation = 0
+        self._speech_pending = False
 
     # ---- call lifecycle ----
     async def on_enter(self) -> None:
@@ -95,8 +97,24 @@ class MyAgent(Agent):
         ):  # the greeting must still play if the backend is slow to start
             logger.exception("could not start a backend call")
         self.session.on("conversation_item_added", self._on_item)
-        ctx.add_shutdown_callback(self.flow.finalize)
+        self.session.on("user_state_changed", self._on_user_state)
+        ctx.add_shutdown_callback(self._shutdown)
         await self.session.say(GREETING)
+
+    def _on_user_state(self, ev) -> None:
+        if ev.new_state == "speaking":
+            self._speech_generation += 1
+            self._speech_pending = True
+
+    async def _shutdown(self) -> None:
+        if self._background:
+            await asyncio.gather(*list(self._background), return_exceptions=True)
+        try:
+            await self.flow.finalize()
+        finally:
+            close = getattr(self.flow.backend, "close", None)
+            if close is not None:
+                await close()
 
     def _on_item(self, ev: ConversationItemAddedEvent) -> None:
         """Assistant turns go to the dashboard in the background. User turns are awaited elsewhere."""
@@ -130,6 +148,7 @@ class MyAgent(Agent):
             raise StopResponse()
         try:
             await self.flow.record_user_turn(text)
+            self._speech_pending = False
         except BackendUnavailableError:
             await self.session.say(
                 "I'm sorry, I can't safely continue because our system isn't responding. "
@@ -189,13 +208,24 @@ class MyAgent(Agent):
         Args:
             slot_id: A slot id that find_slots returned, for example "S-P2-1113-1430".
         """
-        return await self.flow.prepare(slot_id, lambda text: context.session.say(text))
+        generation = self._speech_generation
+        return await self.flow.prepare(
+            slot_id,
+            lambda text: context.session.say(text),
+            lambda: self._speech_generation != generation or self._speech_pending,
+        )
 
     @function_tool
     async def confirm_appointment(self, context: RunContext) -> str:
         """Book the appointment. Call this only after prepare_appointment finished its
         read-back and the caller then said a clear yes. The system checks that for itself.
         Do not say it is booked until this returns a confirmation."""
+        if self._speech_pending:
+            self.flow.token, self.flow.armed = None, False
+            await context.session.say(
+                "I heard a change. Let me confirm the details again."
+            )
+            raise StopResponse()
         context.disallow_interruptions()  # the short write must finish once
         try:
             result = await self.flow.confirm()

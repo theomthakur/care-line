@@ -127,12 +127,7 @@ class Flow:
         if not res.get("providers"):
             return line(res.get("speak", "I couldn't find a doctor that matches."))
         self.provider_options = {p["id"]: p["name"] for p in res["providers"]}
-        sel = await self._call(
-            self.backend.select, self.call_id, res["providers"][0]["id"]
-        )
         coverage = ""
-        if isinstance(sel, dict) and sel.get("ok"):
-            coverage = " " + sel["speak"]
         why = "; ".join(f"{e['name']}: {e['reason']}" for e in res.get("excluded", []))
         ids = ", ".join(
             f"{pid} = {name}" for pid, name in self.provider_options.items()
@@ -164,12 +159,12 @@ class Flow:
             return d
         if not d.get("ok"):
             return line(d.get("speak", "Which day would you like?"))
-        if d.get("ambiguous"):
+        if d.get("needs_clarification") or d.get("ambiguous"):
             return line(
                 d["speak"],
                 "Ask which date, then call find_slots again with the exact date.",
             )
-        dates = sorted(d.get("dates") or [])
+        dates = sorted(d.get("dates") or [c["date"] for c in d.get("candidates", [])])
         if not dates:
             return line(d.get("speak", "Which day would you like?"))
         self.last_day, self.last_part, self.last_provider = (
@@ -193,8 +188,15 @@ class Flow:
             window = await self._call(
                 self.backend.dates, self.call_id, "earliest available"
             )
-            if isinstance(window, dict) and window.get("ok") and window.get("dates"):
-                bounds = sorted(window["dates"])
+            bounds = (
+                sorted(
+                    window.get("dates")
+                    or [c["date"] for c in window.get("candidates", [])]
+                )
+                if isinstance(window, dict) and window.get("ok")
+                else []
+            )
+            if bounds:
                 alt = await self._call(
                     self.backend.availability,
                     self.call_id,
@@ -223,7 +225,9 @@ class Flow:
             f"Slot ids for prepare_appointment: {ids}. Offer only these, as a choice.",
         )
 
-    async def prepare(self, slot_id: str, say: Say) -> str | None:
+    async def prepare(
+        self, slot_id: str, say: Say, interrupted: Callable[[], bool] | None = None
+    ) -> str | None:
         assert self.call_id
         self.token, self.armed = None, False
         s = await self._call(self.backend.slot, self.call_id, slot_id)
@@ -239,7 +243,7 @@ class Flow:
         self.token = p["token"]
         handle = say(p["read_back"])
         await handle.wait_for_playout()
-        if handle.interrupted:
+        if handle.interrupted or (interrupted is not None and interrupted()):
             return (
                 "NOT ARMED. The caller interrupted the read-back, so nothing can be confirmed yet. "
                 "Respond to what they said. If they still want this time, call prepare_appointment again."
@@ -249,6 +253,11 @@ class Flow:
             return a
         if not a.get("ok"):
             return line(a.get("speak", "Let me read that again."))
+        if interrupted is not None and interrupted():
+            self.token, self.armed = None, False
+            return (
+                "NOT ARMED. The caller interrupted the read-back. Read it back again."
+            )
         self.armed = True
         return None  # The read-back already asked the question. Wait for the caller.
 
@@ -262,10 +271,13 @@ class Flow:
         return await self._after_confirm(res)
 
     async def _after_confirm(self, res: dict[str, Any]) -> str:
-        if res.get("ok") and not (res.get("confirmation") and res.get("speak")):
+        confirmation = (res.get("appointment") or {}).get("confirmation") or res.get(
+            "confirmation"
+        )
+        if res.get("ok") and not (confirmation and res.get("speak")):
             return await self._unknown_outcome()  # a success we cannot read is not one
         if res.get("ok"):
-            self.booked = res["confirmation"]
+            self.booked = confirmation
             return line(
                 res["speak"], "Then ask if there is anything else, and say goodbye."
             )
@@ -286,15 +298,35 @@ class Flow:
         """The confirm call failed. The booking may or may not exist: look before claiming anything."""
         assert self.call_id
         try:
-            res = await self.backend.appointment(self.call_id)
+            # Idempotent replay is keyed to this call and the original token.
+            res = await self.backend.confirm(self.call_id, self.token)
+            appointment = res.get("appointment") or {}
+            confirmation = appointment.get("confirmation") or res.get("confirmation")
+            if res.get("ok") and confirmation and res.get("speak"):
+                self.booked = confirmation
+                return line(res["speak"])
         except BackendUnavailableError:
-            res = {}
-        for a in res.get("appointments", []):
-            if a.get("token") == self.token:
-                self.booked = a["confirmation"]
-                return line(
-                    f"Good news, it did go through. Your confirmation number is {a['confirmation']}."
-                )
+            pass
+        try:
+            saved = await self.backend.appointment(self.call_id)
+            appointments = saved.get("appointments", [])
+            # Core scopes this endpoint to the current call and permits one booking.
+            if (
+                saved.get("ok")
+                and len(appointments) == 1
+                and appointments[0].get("confirmation")
+            ):
+                confirmation = appointments[0]["confirmation"]
+                spoken = saved.get("speak")
+                # The legacy fake response includes tokens; match it explicitly.
+                if spoken or appointments[0].get("token") == self.token:
+                    self.booked = confirmation
+                    return line(
+                        spoken
+                        or f"Good news, it did go through. Your confirmation number is {confirmation}."
+                    )
+        except BackendUnavailableError:
+            pass
         return (
             "UNKNOWN OUTCOME. Our system did not confirm the booking, so do not say it is booked. "
             "Tell the caller we could not confirm it, and offer a follow-up request or to try again."
