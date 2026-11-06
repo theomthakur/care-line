@@ -102,7 +102,7 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=models.stt,
         # Bias transcription toward words it would otherwise misspell.
         stt_context_options=STTContextOptions(
-            keyterms=["Take2", "LiveKit"],
+            keyterms=["Take2", "LiveKit", "Haddad", "Liu", "Westside", "Sample Health"],
             keyterm_detection={"enabled": True},
         ),
         # Brain: the LLM
@@ -114,8 +114,11 @@ async def entrypoint(ctx: JobContext) -> None:
             # Decides when the caller has finished speaking, using both the words
             # and the audio (pitch, pauses). Much better than a fixed silence timer.
             turn_detection=inference.TurnDetector(),
-            # Start drafting a reply before the turn is confirmed. Cuts latency.
-            preemptive_generation={"enabled": True},
+            # A shorter endpoint reduces silence after the caller finishes. Test
+            # interruptions in the room; overly aggressive endpointing cuts people off.
+            endpointing={"mode": "fixed", "min_delay": 0.3, "max_delay": 2.0},
+            # Complete the safety and consent checks before generating a reply.
+            preemptive_generation={"enabled": False},
         ),
         user_away_timeout=SILENCE_SECONDS,
     )

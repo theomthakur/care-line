@@ -215,13 +215,11 @@ a model-supplied confirmation flag.
   unchanged original after a conflict, and referral follow-up. Build outcomes
   from committed rows/events. Unsupported API actions should remain unavailable
   until the core routes land.
-- Update reset for the new foreign keys. A blind `DELETE FROM appointments` will
-  fail against referral/lineage references and would lose the history needed for
-  these demos. Safest initial reset: with no live call or pending write, create
-  and seed a fresh demo DB, then restart the shared backend. An eventual in-place
-  reset must clear call/draft source references, remove voice replacements in
-  dependency order, restore fixture statuses/versions, restore original fixture
-  slot occupancy and replacement slots, and preserve referrals/manifest. Normal
-  reseeding intentionally does not do this reset.
+- Console reset was adapted when merging the console with schema v2. With no
+  live call or pending write, it clears call history and restores the original
+  care appointments/referrals from the saved manifest in one transaction,
+  including original statuses/versions and slot occupancy. Deferred foreign-key
+  checks are enforced before commit. Keep this behavior when extending reset;
+  normal reseeding intentionally does not reset later user changes.
 - Use the JSON manifest to build UI fixtures now. Read live schedule/outcomes
   from backend state once integrated; the exported manifest stays a baseline.
