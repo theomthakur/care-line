@@ -223,3 +223,25 @@ async def test_earliest_availability_uses_core_clock_and_any_period(core):
     answer = await flow.find_slots("P2", "earliest available", "")
     assert "Slot ids" in answer
     assert "NOT" not in answer
+
+
+@pytest.mark.asyncio
+async def test_lost_responses_reconcile_call_scoped_appointment_without_token(core):
+    flow = await ready(core)
+    client, _, db = core
+    original = client.confirm
+    count = 0
+
+    async def lost_responses(call_id, token):
+        nonlocal count
+        count += 1
+        if count == 1:
+            await original(call_id, token)
+        raise BackendUnavailableError("response unavailable")
+
+    client.confirm = lost_responses
+    answer = await flow.confirm()
+    assert flow.booked and "booked" in answer.lower()
+    assert count == 2
+    with db.snapshot() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM appointments").fetchone()[0] == 1
