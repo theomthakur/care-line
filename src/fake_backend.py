@@ -297,6 +297,24 @@ class FakeBackend:
         today = self.now.date()
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", t):
             return {"ok": True, "dates": [t]}
+        # Recognize a spoken calendar date before considering a bare weekday.
+        month_match = re.search(
+            r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?\b",
+            t,
+        )
+        if month_match:
+            try:
+                year = int(month_match.group(3) or today.year)
+                resolved = datetime.strptime(
+                    f"{month_match.group(1)} {month_match.group(2)} {year}", "%B %d %Y"
+                ).date()
+                return {"ok": True, "dates": [resolved.isoformat()]}
+            except ValueError:
+                return {
+                    "ok": False,
+                    "error": "OUTSIDE_WINDOW",
+                    "speak": "That date isn't valid. Which day would you like?",
+                }
         if "tomorrow" in t:
             return {"ok": True, "dates": [(today + timedelta(days=1)).isoformat()]}
         for i, w in enumerate(WEEKDAYS):

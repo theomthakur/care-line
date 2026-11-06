@@ -113,6 +113,30 @@ async def test_an_older_yes_followed_by_a_newer_no_books_nothing(
     assert not be.appointments
 
 
+async def test_failed_new_turn_closes_confirmation(be: FakeBackend) -> None:
+    f = await booked_flow(be)
+    await f.prepare("S-P2-1113-1430", says())
+    await f.record_user_turn("Yes")
+
+    async def failed_turn(*_args: object) -> dict:
+        raise BackendUnavailableError("connection failed")
+
+    be.turn = failed_turn  # type: ignore[method-assign]
+    with pytest.raises(BackendUnavailableError):
+        await f.record_user_turn("No, do not book")
+    assert "NOT ARMED" in await f.confirm()
+    assert not be.appointments
+
+
+async def test_selects_the_doctor_the_caller_chose(be: FakeBackend) -> None:
+    f = Flow(be)
+    await f.start("room-choice")
+    await f.verify("4417", "April")
+    await f.find_providers("primary care", "10023")
+    await f.find_slots("P4", "Wednesday", "afternoon")
+    assert be.calls[f.call_id]["selected"] == "P4"
+
+
 async def test_the_slot_taken_during_the_read_back_offers_new_times(
     be: FakeBackend,
 ) -> None:

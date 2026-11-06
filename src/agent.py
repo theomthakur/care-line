@@ -114,8 +114,8 @@ async def entrypoint(ctx: JobContext) -> None:
             # Decides when the caller has finished speaking, using both the words
             # and the audio (pitch, pauses). Much better than a fixed silence timer.
             turn_detection=inference.TurnDetector(),
-            # Start drafting a reply before the turn is confirmed. Cuts latency.
-            preemptive_generation={"enabled": True},
+            # Complete the safety and consent checks before generating a reply.
+            preemptive_generation={"enabled": False},
         ),
         user_away_timeout=SILENCE_SECONDS,
     )

@@ -21,7 +21,7 @@ from livekit.agents import (
 from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.llm import ChatContext, ChatMessage, StopResponse
 
-from backend_client import make_backend
+from backend_client import BackendUnavailableError, make_backend
 from flow import Flow
 from prompts import build_instructions
 from safety import check_safety
@@ -117,10 +117,10 @@ class MyAgent(Agent):
         if not text:
             raise StopResponse()
         # 1. Save the turn in order, and wait, so confirmation always reads the newest one.
-        await self.flow.record_user_turn(text)
         # 2. The emergency screen. Code, not the model. Anything spoken here replaces the reply.
         verdict = check_safety(text)
         if verdict:
+            self.flow.token, self.flow.armed = None, False
             await self.session.say(verdict.line, allow_interruptions=False)
             if verdict.kind != "ask":
                 try:
@@ -128,6 +128,14 @@ class MyAgent(Agent):
                 except Exception:
                     logger.exception("could not file the safety task")
             raise StopResponse()
+        try:
+            await self.flow.record_user_turn(text)
+        except BackendUnavailableError:
+            await self.session.say(
+                "I'm sorry, I can't safely continue because our system isn't responding. "
+                "Please try again later."
+            )
+            raise StopResponse() from None
 
     # ---- the six tools. The docstring is what the model reads. ----
     @function_tool
@@ -189,7 +197,17 @@ class MyAgent(Agent):
         read-back and the caller then said a clear yes. The system checks that for itself.
         Do not say it is booked until this returns a confirmation."""
         context.disallow_interruptions()  # the short write must finish once
-        return await self.flow.confirm()
+        result = await self.flow.confirm()
+        prefix = "Say this, nearly as written: "
+        if result.startswith(prefix):
+            spoken = result[len(prefix) :].split(
+                "\nNotes for you, never read these out:", 1
+            )[0]
+        else:
+            spoken = "I couldn't confirm the appointment. Nothing has been confirmed. Let's check again."
+        await context.session.say(spoken, allow_interruptions=False)
+        # Do not let the language model invent a booking after a rejected write.
+        raise StopResponse()
 
     @function_tool
     async def create_followup(

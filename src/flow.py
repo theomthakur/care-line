@@ -77,11 +77,15 @@ class Flow:
 
     async def record_user_turn(self, text: str) -> None:
         """Awaited before any tool runs, so confirmation always reads the newest turn."""
-        if self.call_id:
-            try:
-                await self.backend.turn(self.call_id, "user", text)
-            except BackendUnavailableError as e:
-                logger.warning("could not store a user turn: %s", e)
+        try:
+            if not self.call_id:
+                raise BackendUnavailableError("The call could not be started")
+            result = await self.backend.turn(self.call_id, "user", text)
+            if not result.get("ok"):
+                raise BackendUnavailableError("The caller's turn could not be saved")
+        except BackendUnavailableError:
+            self.token, self.armed = None, False
+            raise
 
     async def record_assistant_turn(self, text: str) -> None:
         if self.call_id:
@@ -146,6 +150,11 @@ class Flow:
                 or "none yet"
             )
             return f"Unknown doctor id. Use one of: {ids}. Search for doctors first if there are none."
+        selected = await self._call(self.backend.select, self.call_id, provider_id)
+        if isinstance(selected, str):
+            return selected
+        if not selected.get("ok"):
+            return line(selected.get("speak", "I couldn't select that doctor."))
         d = await self._call(self.backend.dates, self.call_id, day)
         if isinstance(d, str):
             return d

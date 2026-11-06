@@ -84,10 +84,20 @@ class HttpBackend:
         try:
             async with self._http().post(self.base_url + path, json=body or {}) as r:
                 data = await r.json(content_type=None)
+                status = r.status
         except (aiohttp.ClientError, TimeoutError, ValueError) as e:
             raise BackendUnavailableError(f"{path}: {e}") from e
         if not isinstance(data, dict):
             raise BackendUnavailableError(f"{path}: unreadable response")
+        if status >= 400:
+            if (
+                400 <= status < 500
+                and isinstance(data.get("error"), str)
+                and data.get("speak")
+            ):
+                data["ok"] = False
+                return data
+            raise BackendUnavailableError(f"{path}: HTTP {status}")
         data.setdefault("ok", "error" not in data)
         return data
 
@@ -95,10 +105,20 @@ class HttpBackend:
         try:
             async with self._http().get(self.base_url + path) as r:
                 data = await r.json(content_type=None)
+                status = r.status
         except (aiohttp.ClientError, TimeoutError, ValueError) as e:
             raise BackendUnavailableError(f"{path}: {e}") from e
         if not isinstance(data, dict):
             raise BackendUnavailableError(f"{path}: unreadable response")
+        if status >= 400:
+            if (
+                400 <= status < 500
+                and isinstance(data.get("error"), str)
+                and data.get("speak")
+            ):
+                data["ok"] = False
+                return data
+            raise BackendUnavailableError(f"{path}: HTTP {status}")
         data.setdefault("ok", "error" not in data)
         return data
 
