@@ -1,0 +1,676 @@
+{
+  "fixture_set": "care-journeys-v2",
+  "demo_date": "2026-11-06",
+  "timezone": "America/New_York",
+  "synthetic": true,
+  "members": [
+    {
+      "member_id": "M1",
+      "display_name": "Maya T.",
+      "member_digits": "4417",
+      "birth_month": 4,
+      "plan_id": "GOLD"
+    },
+    {
+      "member_id": "M2",
+      "display_name": "Riley C.",
+      "member_digits": "2261",
+      "birth_month": 6,
+      "plan_id": "BASIC"
+    },
+    {
+      "member_id": "M3",
+      "display_name": "Devon C.",
+      "member_digits": "8832",
+      "birth_month": 9,
+      "plan_id": "BASIC"
+    },
+    {
+      "member_id": "M4",
+      "display_name": "Tessa B.",
+      "member_digits": "7734",
+      "birth_month": 2,
+      "plan_id": "BASIC"
+    },
+    {
+      "member_id": "M5",
+      "display_name": "Jordan B.",
+      "member_digits": "6652",
+      "birth_month": 11,
+      "plan_id": "BASIC"
+    }
+  ],
+  "cases": [
+    {
+      "id": "reschedule-maya-pcp",
+      "member_id": "M1",
+      "appointment_id": "FIX-MAYA-PCP-BOOKED",
+      "provider_id": "P2",
+      "specialty": "primary care",
+      "original_slot_id": "S-P2-20261110-0930",
+      "replacement_slot_id": "S-P2-20261111-0930",
+      "unavailable_slot_id": "S-P2-20261111-0900",
+      "referral_id": null,
+      "expected": "move_atomically_after_new_consent",
+      "on_conflict": "keep_original_booked"
+    },
+    {
+      "id": "reschedule-riley-pcp",
+      "member_id": "M2",
+      "appointment_id": "FIX-RILEY-PCP-BOOKED",
+      "provider_id": "P4",
+      "specialty": "primary care",
+      "original_slot_id": "S-P4-20261112-1000",
+      "replacement_slot_id": "S-P4-20261113-1000",
+      "unavailable_slot_id": "S-P4-20261113-1030",
+      "referral_id": null,
+      "expected": "move_atomically_after_new_consent",
+      "on_conflict": "keep_original_booked"
+    },
+    {
+      "id": "reschedule-maya-specialist",
+      "member_id": "M1",
+      "appointment_id": "FIX-MAYA-SPECIALIST-BOOKED",
+      "provider_id": "P8",
+      "specialty": "dermatology",
+      "original_slot_id": "S-P8-20261112-1300",
+      "replacement_slot_id": "S-P8-20261113-1300",
+      "unavailable_slot_id": "S-P8-20261113-1330",
+      "referral_id": "REF-M1-DERM",
+      "expected": "move_atomically_after_new_consent",
+      "on_conflict": "keep_original_booked"
+    },
+    {
+      "id": "reschedule-riley-specialist",
+      "member_id": "M2",
+      "appointment_id": "FIX-RILEY-SPECIALIST-BOOKED",
+      "provider_id": "P6",
+      "specialty": "cardiology",
+      "original_slot_id": "S-P6-20261110-1100",
+      "replacement_slot_id": "S-P6-20261111-1400",
+      "unavailable_slot_id": "S-P6-20261111-1430",
+      "referral_id": "REF-M2-CARD",
+      "expected": "move_atomically_after_new_consent",
+      "on_conflict": "keep_original_booked"
+    },
+    {
+      "id": "specialist-no-referral-required",
+      "member_id": "M1",
+      "specialty": "dermatology",
+      "referral_id": "REF-M1-DERM",
+      "provider_id": "P8",
+      "expected": "eligible_without_formal_referral",
+      "evidence_id": "GOLD-REF"
+    },
+    {
+      "id": "specialist-valid-referral",
+      "member_id": "M2",
+      "specialty": "cardiology",
+      "referral_id": "REF-M2-CARD",
+      "provider_id": "P6",
+      "expected": "eligible_with_verified_referral",
+      "evidence_id": "BASIC-REF"
+    },
+    {
+      "id": "specialist-missing-referral",
+      "member_id": "M4",
+      "specialty": "cardiology",
+      "referral_id": null,
+      "provider_id": "P6",
+      "expected": "referral_required_followup",
+      "evidence_id": "BASIC-REF"
+    },
+    {
+      "id": "specialist-expired-referral",
+      "member_id": "M5",
+      "specialty": "dermatology",
+      "referral_id": "REF-M5-DERM",
+      "provider_id": "P8",
+      "expected": "referral_required_followup",
+      "evidence_id": "BASIC-REF"
+    },
+    {
+      "id": "specialist-revoked-referral",
+      "member_id": "M5",
+      "specialty": "cardiology",
+      "referral_id": "REF-M5-CARD",
+      "provider_id": "P6",
+      "expected": "referral_required_followup",
+      "evidence_id": "BASIC-REF"
+    },
+    {
+      "id": "specialist-not-accepting",
+      "member_id": "M1",
+      "specialty": "cardiology",
+      "provider_id": "P9",
+      "expected": "visit_type_unavailable"
+    },
+    {
+      "id": "specialist-out-of-network",
+      "member_id": "M1",
+      "specialty": "cardiology",
+      "provider_id": "P6",
+      "expected": "not_bookable"
+    },
+    {
+      "id": "specialist-no-availability",
+      "member_id": "M1",
+      "specialty": "dermatology",
+      "provider_id": "P5",
+      "expected": "no_availability_followup"
+    },
+    {
+      "id": "reschedule-specialist-referral-expires-before-new-date",
+      "member_id": "M2",
+      "appointment_id": "FIX-RILEY-SPECIALIST-BOOKED",
+      "provider_id": "P6",
+      "specialty": "cardiology",
+      "referral_id": "REF-M2-CARD",
+      "replacement_slot_id": "S-P6-20261116-1100",
+      "expected": "referral_required_keep_original_booked"
+    }
+  ],
+  "plans": [
+    {
+      "id": "BASIC",
+      "name": "Basic 2026",
+      "network": "VALUE",
+      "specialist_referral_required": 1
+    },
+    {
+      "id": "GOLD",
+      "name": "Gold 2026",
+      "network": "METRO",
+      "specialist_referral_required": 0
+    }
+  ],
+  "providers": [
+    {
+      "id": "P1",
+      "name": "Dr. Lena Park",
+      "specialty": "primary care",
+      "zip": "10019",
+      "phone": "212-555-0101",
+      "accepting_new_patients": 0,
+      "networks": [
+        "METRO"
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Dr. Omar Haddad",
+      "specialty": "primary care",
+      "zip": "10023",
+      "phone": "212-555-0102",
+      "accepting_new_patients": 1,
+      "networks": [
+        "METRO"
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Dr. Grace Liu",
+      "specialty": "primary care",
+      "zip": "10019",
+      "phone": "212-555-0103",
+      "accepting_new_patients": 1,
+      "networks": [
+        "VALUE"
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Westside Family Medicine",
+      "specialty": "primary care",
+      "zip": "10024",
+      "phone": "212-555-0104",
+      "accepting_new_patients": 1,
+      "networks": [
+        "METRO",
+        "VALUE"
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Dr. Samuel Reyes",
+      "specialty": "dermatology",
+      "zip": "10019",
+      "phone": "212-555-0105",
+      "accepting_new_patients": 1,
+      "networks": [
+        "METRO"
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Dr. Nina Rao",
+      "specialty": "cardiology",
+      "zip": "10023",
+      "phone": "212-555-0106",
+      "accepting_new_patients": 1,
+      "networks": [
+        "VALUE"
+      ]
+    },
+    {
+      "id": "P7",
+      "name": "Dr. Elena Cruz",
+      "specialty": "cardiology",
+      "zip": "10024",
+      "phone": "212-555-0107",
+      "accepting_new_patients": 1,
+      "networks": [
+        "METRO"
+      ]
+    },
+    {
+      "id": "P8",
+      "name": "Dr. Aaron Shah",
+      "specialty": "dermatology",
+      "zip": "10023",
+      "phone": "212-555-0108",
+      "accepting_new_patients": 1,
+      "networks": [
+        "METRO",
+        "VALUE"
+      ]
+    },
+    {
+      "id": "P9",
+      "name": "Dr. Priya Mehta",
+      "specialty": "cardiology",
+      "zip": "10019",
+      "phone": "212-555-0109",
+      "accepting_new_patients": 0,
+      "networks": [
+        "METRO",
+        "VALUE"
+      ]
+    }
+  ],
+  "appointments": [
+    {
+      "id": "FIX-M1-PCP-COMPLETED",
+      "call_id": null,
+      "member_id": "M1",
+      "provider_id": "P4",
+      "slot_id": "S-P4-20261103-0900",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-M1-PCP-COMPLETED",
+      "status": "completed",
+      "starts_at": "2026-11-03T14:00:00Z",
+      "ends_at": "2026-11-03T14:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-M2-PCP-COMPLETED",
+      "call_id": null,
+      "member_id": "M2",
+      "provider_id": "P3",
+      "slot_id": "S-P3-20261103-1000",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-M2-PCP-COMPLETED",
+      "status": "completed",
+      "starts_at": "2026-11-03T15:00:00Z",
+      "ends_at": "2026-11-03T15:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-M4-PCP-COMPLETED",
+      "call_id": null,
+      "member_id": "M4",
+      "provider_id": "P3",
+      "slot_id": "S-P3-20261103-1100",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-M4-PCP-COMPLETED",
+      "status": "completed",
+      "starts_at": "2026-11-03T16:00:00Z",
+      "ends_at": "2026-11-03T16:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-M5-PCP-COMPLETED",
+      "call_id": null,
+      "member_id": "M5",
+      "provider_id": "P4",
+      "slot_id": "S-P4-20261103-1400",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-M5-PCP-COMPLETED",
+      "status": "completed",
+      "starts_at": "2026-11-03T19:00:00Z",
+      "ends_at": "2026-11-03T19:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-MAYA-PCP-BOOKED",
+      "call_id": null,
+      "member_id": "M1",
+      "provider_id": "P2",
+      "slot_id": "S-P2-20261110-0930",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-MAYA-PCP-BOOKED",
+      "status": "booked",
+      "starts_at": "2026-11-10T14:30:00Z",
+      "ends_at": "2026-11-10T15:00:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-MAYA-SPECIALIST-BOOKED",
+      "call_id": null,
+      "member_id": "M1",
+      "provider_id": "P8",
+      "slot_id": "S-P8-20261112-1300",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-MAYA-SPECIALIST-BOOKED",
+      "status": "booked",
+      "starts_at": "2026-11-12T18:00:00Z",
+      "ends_at": "2026-11-12T18:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": "REF-M1-DERM",
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-RILEY-PCP-BOOKED",
+      "call_id": null,
+      "member_id": "M2",
+      "provider_id": "P4",
+      "slot_id": "S-P4-20261112-1000",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-RILEY-PCP-BOOKED",
+      "status": "booked",
+      "starts_at": "2026-11-12T15:00:00Z",
+      "ends_at": "2026-11-12T15:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": null,
+      "replaces_appointment_id": null
+    },
+    {
+      "id": "FIX-RILEY-SPECIALIST-BOOKED",
+      "call_id": null,
+      "member_id": "M2",
+      "provider_id": "P6",
+      "slot_id": "S-P6-20261110-1100",
+      "draft_id": null,
+      "confirmation": "MG-DEMO-RILEY-SPECIALIST-BOOKED",
+      "status": "booked",
+      "starts_at": "2026-11-10T16:00:00Z",
+      "ends_at": "2026-11-10T16:30:00Z",
+      "consent_turn_seq": null,
+      "created_at": "2026-10-30T12:00:00Z",
+      "source": "synthetic_fixture",
+      "version": 1,
+      "referral_id": "REF-M2-CARD",
+      "replaces_appointment_id": null
+    }
+  ],
+  "referrals": [
+    {
+      "id": "REF-M1-DERM",
+      "member_id": "M1",
+      "referring_provider_id": "P4",
+      "referring_appointment_id": "FIX-M1-PCP-COMPLETED",
+      "specialty": "dermatology",
+      "status": "reported",
+      "valid_from": null,
+      "valid_until": null,
+      "source": "synthetic_fixture",
+      "created_at": "2026-11-03T21:00:00Z"
+    },
+    {
+      "id": "REF-M2-CARD",
+      "member_id": "M2",
+      "referring_provider_id": "P3",
+      "referring_appointment_id": "FIX-M2-PCP-COMPLETED",
+      "specialty": "cardiology",
+      "status": "verified",
+      "valid_from": "2026-10-30",
+      "valid_until": "2026-11-13",
+      "source": "synthetic_fixture",
+      "created_at": "2026-11-03T21:00:00Z"
+    },
+    {
+      "id": "REF-M5-CARD",
+      "member_id": "M5",
+      "referring_provider_id": "P4",
+      "referring_appointment_id": "FIX-M5-PCP-COMPLETED",
+      "specialty": "cardiology",
+      "status": "revoked",
+      "valid_from": "2026-10-30",
+      "valid_until": "2026-12-06",
+      "source": "synthetic_fixture",
+      "created_at": "2026-11-03T21:00:00Z"
+    },
+    {
+      "id": "REF-M5-DERM",
+      "member_id": "M5",
+      "referring_provider_id": "P4",
+      "referring_appointment_id": "FIX-M5-PCP-COMPLETED",
+      "specialty": "dermatology",
+      "status": "verified",
+      "valid_from": "2026-10-07",
+      "valid_until": "2026-11-05",
+      "source": "synthetic_fixture",
+      "created_at": "2026-11-03T21:00:00Z"
+    }
+  ],
+  "slots": [
+    {
+      "id": "S-P2-20261110-0930",
+      "provider_id": "P2",
+      "starts_at": "2026-11-10T14:30:00Z",
+      "ends_at": "2026-11-10T15:00:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P2-20261111-0900",
+      "provider_id": "P2",
+      "starts_at": "2026-11-11T14:00:00Z",
+      "ends_at": "2026-11-11T14:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "seeded_occupancy",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P2-20261111-0930",
+      "provider_id": "P2",
+      "starts_at": "2026-11-11T14:30:00Z",
+      "ends_at": "2026-11-11T15:00:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "open",
+      "occupancy_reason": null,
+      "seed_state": "open"
+    },
+    {
+      "id": "S-P3-20261103-1000",
+      "provider_id": "P3",
+      "starts_at": "2026-11-03T15:00:00Z",
+      "ends_at": "2026-11-03T15:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P3-20261103-1100",
+      "provider_id": "P3",
+      "starts_at": "2026-11-03T16:00:00Z",
+      "ends_at": "2026-11-03T16:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P4-20261103-0900",
+      "provider_id": "P4",
+      "starts_at": "2026-11-03T14:00:00Z",
+      "ends_at": "2026-11-03T14:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P4-20261103-1400",
+      "provider_id": "P4",
+      "starts_at": "2026-11-03T19:00:00Z",
+      "ends_at": "2026-11-03T19:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P4-20261112-1000",
+      "provider_id": "P4",
+      "starts_at": "2026-11-12T15:00:00Z",
+      "ends_at": "2026-11-12T15:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P4-20261113-1000",
+      "provider_id": "P4",
+      "starts_at": "2026-11-13T15:00:00Z",
+      "ends_at": "2026-11-13T15:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "open",
+      "occupancy_reason": null,
+      "seed_state": "open"
+    },
+    {
+      "id": "S-P4-20261113-1030",
+      "provider_id": "P4",
+      "starts_at": "2026-11-13T15:30:00Z",
+      "ends_at": "2026-11-13T16:00:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "seeded_occupancy",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P6-20261110-1100",
+      "provider_id": "P6",
+      "starts_at": "2026-11-10T16:00:00Z",
+      "ends_at": "2026-11-10T16:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P6-20261111-1400",
+      "provider_id": "P6",
+      "starts_at": "2026-11-11T19:00:00Z",
+      "ends_at": "2026-11-11T19:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "open",
+      "occupancy_reason": null,
+      "seed_state": "open"
+    },
+    {
+      "id": "S-P6-20261111-1430",
+      "provider_id": "P6",
+      "starts_at": "2026-11-11T19:30:00Z",
+      "ends_at": "2026-11-11T20:00:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "seeded_occupancy",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P6-20261116-1100",
+      "provider_id": "P6",
+      "starts_at": "2026-11-16T16:00:00Z",
+      "ends_at": "2026-11-16T16:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "open",
+      "occupancy_reason": null,
+      "seed_state": "open"
+    },
+    {
+      "id": "S-P8-20261112-1300",
+      "provider_id": "P8",
+      "starts_at": "2026-11-12T18:00:00Z",
+      "ends_at": "2026-11-12T18:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "appointment",
+      "seed_state": "booked"
+    },
+    {
+      "id": "S-P8-20261113-1300",
+      "provider_id": "P8",
+      "starts_at": "2026-11-13T18:00:00Z",
+      "ends_at": "2026-11-13T18:30:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "open",
+      "occupancy_reason": null,
+      "seed_state": "open"
+    },
+    {
+      "id": "S-P8-20261113-1330",
+      "provider_id": "P8",
+      "starts_at": "2026-11-13T18:30:00Z",
+      "ends_at": "2026-11-13T19:00:00Z",
+      "visit_type": "new_patient",
+      "modality": "in_person",
+      "state": "booked",
+      "occupancy_reason": "seeded_occupancy",
+      "seed_state": "booked"
+    }
+  ]
+}

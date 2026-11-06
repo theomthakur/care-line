@@ -1,0 +1,13 @@
+{
+  "slot": {
+    "slot_id": "S-P2-1113-1500",
+    "provider_id": "P2",
+    "starts_at": "2026-11-13T20:00:00Z",
+    "ends_at": "2026-11-13T20:30:00Z",
+    "timezone": "America/New_York",
+    "text": "Friday, November 13, 2026 at 3:00 PM Eastern time"
+  },
+  "revision": 1,
+  "status": "slot",
+  "speak": "You chose Friday, November 13, 2026 at 3:00 PM Eastern time. I will read the details back before booking."
+}

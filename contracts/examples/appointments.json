@@ -1,0 +1,19 @@
+{
+  "appointments": [
+    {
+      "appointment_id": "apt_01",
+      "status": "booked",
+      "confirmation": "MG-APT-4821",
+      "provider_id": "P2",
+      "slot_id": "S-P2-1113-1500",
+      "doctor": "Dr. Omar Haddad",
+      "phone": "212-555-0102",
+      "starts_at": "2026-11-13T20:00:00Z",
+      "ends_at": "2026-11-13T20:30:00Z",
+      "timezone": "America/New_York",
+      "when": "Friday, November 13, 2026 at 3:00 PM Eastern time",
+      "simulated": true
+    }
+  ],
+  "speak": "Your simulated appointment with Dr. Omar Haddad is booked for Friday, November 13, 2026 at 3:00 PM Eastern time. Your confirmation is M G, A P T, four, eight, two, one; the office number is two one two, five five five, zero one zero two."
+}
