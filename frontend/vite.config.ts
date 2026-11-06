@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       "/calls": backend,
       "/tasks": backend,
+      "/providers": backend,
       "/admin": backend,
     },
   },

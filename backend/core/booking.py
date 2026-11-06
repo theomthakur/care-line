@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import secrets
 from datetime import timedelta
 
@@ -21,7 +22,29 @@ from .common import (
 )
 from .errors import DomainError
 
-YES = frozenset({"yes", "yes please", "confirm", "book it"})
+_YES_WORD = (
+    r"(?:yes|yeah|yea|yep|yup|sure|ok|okay|correct|right|absolutely|definitely|"
+    r"certainly|of course|that'?s right|that'?s correct|that works|sounds good|"
+    r"that sounds good|perfect|go ahead|please do|do it|book it|confirm|confirmed|"
+    r"i do|i confirm|let'?s do it|i'?d like that)"
+)
+# Only these confirming words may follow a yes. Anything else ("but later", "if it's
+# free", "no", "wait") is not a clean yes and books nothing.
+_YES_TAIL = (
+    rf"(?:{_YES_WORD}|please|thanks|thank you|book that|please book it|please book that|"
+    r"please go ahead|that'?s fine|that'?s good|sir|ma'?am)"
+)
+_YES = re.compile(
+    rf"^(?:(?:uh|um|er|hmm|mm|well|so)[\s,]+)*{_YES_WORD}(?:[\s,]+{_YES_TAIL})*$"
+)
+
+
+def is_clear_yes(text):
+    """A yes with nothing added. 'Yes, but later', 'hold on' and 'no' are not a yes."""
+    t = " ".join(str(text).replace("\u2019", "'").lower().split())
+    return bool(_YES.match(t.strip(" ,.!?;")))
+
+
 DIGIT_WORDS = [
     "zero",
     "one",
@@ -82,7 +105,7 @@ def select_slot(db, call_id, slot_id):
             "slot": slot_view(slot),
             "revision": revision,
             "status": "slot",
-            "speak": "I'll read back that exact simulated appointment before booking.",
+            "speak": "Let me read that back to you.",
         }
 
 
@@ -133,7 +156,7 @@ def preview_booking(db, call_id):
         provider = conn.execute(
             "SELECT name FROM providers WHERE id=?", (slot["provider_id"],)
         ).fetchone()
-        read_back = f"{member['display_name']}, this is a simulated new-patient primary care visit in person with {provider['name']} on {spoken_time(slot['starts_at'])}. Would you like me to book that exact appointment in the demo schedule?"
+        read_back = f"{member['display_name']}, I have you for a new-patient visit, in person, with {provider['name']} on {spoken_time(slot['starts_at'])}. Shall I book it?"
         token = secrets.token_urlsafe(32)
         user = latest_user(conn, call_id)
         conn.execute(
@@ -187,7 +210,7 @@ def armed_view(draft):
         "armed_seq": draft["armed_seq"],
         "armed_at": draft["armed_at"],
         "expires_at": draft["expires_at"],
-        "speak": "Please say yes if you want that exact simulated appointment.",
+        "speak": "Please say yes if you want me to book it.",
     }
 
 
@@ -225,7 +248,7 @@ def confirmation_response(conn, appointment):
     phone = ", ".join(say_digits(group) for group in result["phone"].split("-"))
     return {
         "appointment": result,
-        "speak": f"Your simulated appointment with {result['doctor']} is booked for {result['when']}. Your confirmation is M G, A P T, {digits}; the office number is {phone}.",
+        "speak": f"You're all booked with {result['doctor']} for {result['when']}. Your confirmation number is M G, A P T, {digits}. The office number is {phone}.",
     }
 
 
@@ -256,8 +279,7 @@ def confirm_booking(db, call_id, token):
             raise DomainError("NOT_ARMED")
         if user["received_at"] >= draft["expires_at"]:
             raise DomainError("STALE_CONFIRMATION")
-        text = user["text"].strip().rstrip(".!?").strip().lower()
-        if text not in YES:
+        if not is_clear_yes(user["text"]):
             raise DomainError("NOT_CONFIRMED")
         slot = checked_draft_slot(conn, call, draft, now)
         for field, value, error in [
@@ -323,5 +345,5 @@ def get_appointments(db, call_id):
             "appointments": appointments,
             "speak": confirmation_response(conn, rows[0])["speak"]
             if rows
-            else "There is no upcoming simulated appointment saved for this call.",
+            else "There is no upcoming appointment saved for this call.",
         }

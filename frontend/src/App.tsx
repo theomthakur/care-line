@@ -1,6 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, CloudOff, FlaskConical, MessageSquare, PhoneCall, PhoneOff, RefreshCw, SearchX, WifiOff } from "lucide-react";
-import { getCallState, getCalls } from "./api";
+import { CloudOff, FlaskConical, MessageSquare, PhoneCall, PhoneOff, RefreshCw, SearchX, WifiOff } from "lucide-react";
+import { getCallHistory, getCallState, getCalls, type CallListItem } from "./api";
+import { Providers } from "./Providers";
+import { ProductShell, History, Architecture, Deck, Developer, type Section } from "./ProductShell";
 import { ago, callStartedAt, lastTurn, mmss, shortClock, shortId } from "./format";
 import { FIXTURE_STAGES } from "./fixtures";
 import { usePoll, type Connection } from "./usePolling";
@@ -168,6 +170,29 @@ export function App() {
   const fixtureStage = useMemo(() => FIXTURE_STAGES.find((f) => f.key === stage) ?? FIXTURE_STAGES[0], [stage]);
   const [selectedId, setSelectedId] = useState<string | null>(() => (isFixture ? null : hashId()));
   const [tab, setTab] = useState<Tab>("call");
+  const [section, setSection] = useState<Section>("workspace");
+  const [developer, setDeveloper] = useState(() => localStorage.getItem("careline-developer") === "on");
+  const [history, setHistory] = useState<CallListItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  useEffect(() => {
+    localStorage.setItem("careline-developer", developer ? "on" : "off");
+    if (!developer && section === "developer") setSection("workspace");
+  }, [developer, section]);
+  // Call history page (read-only list). Opening a call there selects it in the live workspace.
+  useEffect(() => {
+    if (section !== "history" || isFixture) return;
+    let active = true;
+    const load = async () => {
+      try { const items = await getCallHistory(); if (active) { setHistory(items); setHistoryError(""); } }
+      catch { if (active) setHistoryError("Check the backend connection and try again."); }
+      finally { if (active) setHistoryLoading(false); }
+    };
+    setHistoryLoading(true);
+    void load();
+    const id = setInterval(load, 5000);
+    return () => { active = false; clearInterval(id); };
+  }, [section]);
 
   // Two independent 1 s polls: the call list, and the ONE selected call's full state.
   const list = usePoll(getCalls, "calls", 1000, !isFixture);
@@ -224,21 +249,21 @@ export function App() {
       </>
     );
 
+  const crumb = section === "workspace" ? "Live workspace" : section === "history" ? "Call history" : section === "providers" ? "Providers" : section === "architecture" ? "System design" : section === "presentation" ? "Presentation" : "Developer view";
+  const openCall = (id: string) => { select(id); setSection("workspace"); };
+
   return (
+    <ProductShell section={section} setSection={setSection} developer={developer} setDeveloper={setDeveloper}>
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true"><Activity size={16} strokeWidth={2.4} /></span>
-          Care Line
-        </div>
-        <span className="crumb-sep" />
-        <span className="crumb">Operator console</span>
+        <span className="crumb">Workspace / {crumb}</span>
         <span className="topbar-spacer" />
         <div className="topbar-right">
           <ConnectionBadge connection={link} lastOk={lastOk} fixture={isFixture} onRetry={refresh} />
         </div>
       </header>
 
+      {section === "providers" ? <Providers /> : section === "history" ? <History calls={history} loading={historyLoading} error={historyError} onSelect={openCall} /> : section === "architecture" ? <Architecture /> : section === "presentation" ? <Deck /> : section === "developer" ? <Developer state={state} /> : <>
       {isFixture && (
         <div className="fixture-bar" role="region" aria-label="Fixture mode">
           <b>Fixture mode · not a live call</b>
@@ -273,6 +298,8 @@ export function App() {
         <Conversations calls={calls} selectedId={effectiveId} onSelect={select} loading={!isFixture && list.data === undefined && link === "loading"} fixture={isFixture} stale={down} />
         <div className="shell-main">{body}</div>
       </div>
+      </>}
     </div>
+    </ProductShell>
   );
 }

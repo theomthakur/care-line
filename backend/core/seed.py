@@ -22,6 +22,53 @@ PROVIDERS = [
     ("P5", "Dr. Samuel Reyes", "dermatology", "10019", "212-555-0105", 1, ["METRO"]),
     ("P6", "Dr. Nina Rao", "cardiology", "10023", "212-555-0106", 1, ["VALUE"]),
 ]
+# A wider roster for the running service. It lives in ZIP areas the original six do
+# not cover, so existing searches and tests are unchanged. Loaded by seed_expanded().
+EXPANDED_PROVIDERS = [
+    ("P7", "Dr. Priya Nair", "primary care", "10001", "212-555-0107", 1, ["METRO"]),
+    ("P8", "Dr. Elena Vasquez", "primary care", "10001", "212-555-0108", 1, ["VALUE"]),
+    ("P9", "Dr. Hannah Brooks", "primary care", "10011", "212-555-0109", 0, ["METRO"]),
+    ("P10", "Dr. Aisha Rahman", "primary care", "10011", "212-555-0110", 1, ["METRO"]),
+    (
+        "P11",
+        "Chelsea Community Health",
+        "primary care",
+        "10001",
+        "212-555-0111",
+        1,
+        ["METRO", "VALUE"],
+    ),
+    ("P12", "Dr. Mei Tanaka", "primary care", "10025", "212-555-0112", 1, ["VALUE"]),
+    (
+        "P13",
+        "Dr. Rachel Goldberg",
+        "primary care",
+        "10025",
+        "212-555-0113",
+        1,
+        ["METRO"],
+    ),
+    (
+        "P14",
+        "Riverside Family Practice",
+        "primary care",
+        "10025",
+        "212-555-0114",
+        1,
+        ["METRO", "VALUE"],
+    ),
+    ("P15", "Dr. Sofia Marin", "primary care", "10128", "212-555-0115", 1, ["METRO"]),
+    ("P16", "Dr. Olivia Grant", "primary care", "10128", "212-555-0116", 1, ["VALUE"]),
+    (
+        "P17",
+        "East Side Primary Care",
+        "primary care",
+        "10128",
+        "212-555-0117",
+        1,
+        ["METRO", "VALUE"],
+    ),
+]
 GOLD_PREV = "One annual preventive visit with an in-network primary care provider is covered at no cost share when billed as preventive. Other services during the visit may be billed separately."
 BASIC_PREV = "One annual preventive visit with an in-network primary care provider is covered when billed as preventive. Other services may be billed separately."
 
@@ -144,6 +191,46 @@ def seed(db, *, demo_date=None):
                         occupied = True
                     if pid == "P1" and day == next_days[4] and hour >= 14:
                         occupied = True
+                    start = datetime.combine(day, time(hour, minute), tzinfo=EASTERN)
+                    state = "booked" if occupied else "open"
+                    conn.execute(
+                        "INSERT OR IGNORE INTO slots(id,provider_id,starts_at,ends_at,state,occupancy_reason,seed_state) VALUES (?,?,?,?,?,?,?)",
+                        (
+                            f"S-{pid}-{day:%Y%m%d}-{hour:02}{minute:02}",
+                            pid,
+                            utc(start),
+                            utc(start + timedelta(minutes=30)),
+                            state,
+                            "seeded_occupancy" if occupied else None,
+                            state,
+                        ),
+                    )
+
+
+def seed_expanded(db, *, demo_date=None):
+    """Add the wider roster and ten business days of 30-minute slots. Safe to repeat."""
+    demo_date = demo_date or db.now().astimezone(EASTERN).date()
+    days = []
+    day = demo_date
+    while len(days) < 10:
+        if day.weekday() < 5:
+            days.append(day)
+        day += timedelta(days=1)
+    with db.transaction() as conn:
+        for index, (*provider, networks) in enumerate(EXPANDED_PROVIDERS):
+            pid = provider[0]
+            conn.execute(
+                "INSERT OR IGNORE INTO providers VALUES (?,?,?,?,?,?)", provider
+            )
+            conn.executemany(
+                "INSERT OR IGNORE INTO provider_networks VALUES (?,?)",
+                [(pid, network) for network in networks],
+            )
+            for day_index, day in enumerate(days):
+                for cell in range(16):
+                    hour, minute = 9 + cell // 2, (cell % 2) * 30
+                    # A lived-in schedule: roughly 40% taken, different for each doctor.
+                    occupied = (cell * 3 + day_index * 2 + index) % 5 < 2
                     start = datetime.combine(day, time(hour, minute), tzinfo=EASTERN)
                     state = "booked" if occupied else "open"
                     conn.execute(

@@ -83,7 +83,7 @@ async def test_real_http_selects_p4_and_confirms_nested_response(core):
     flow = await ready(core, "P4", "2026-11-11")
     answer = await flow.confirm()
     assert flow.booked and "booked" in answer.lower()
-    assert "simulated" in answer.lower()
+    assert "booked" in answer.lower()
     await flow.finalize()
     await flow.backend.close()
 
@@ -245,3 +245,85 @@ async def test_lost_responses_reconcile_call_scoped_appointment_without_token(co
     assert count == 2
     with db.snapshot() as conn:
         assert conn.execute("SELECT COUNT(*) FROM appointments").fetchone()[0] == 1
+
+
+@pytest.mark.asyncio
+async def test_history_returns_stored_redacted_call(core):
+    client, _, _ = core
+    flow = Flow(client)
+    await flow.start("history-test")
+    await flow.record_user_turn("My member number is 4417 and my birth month is April")
+    await flow.verify("4417", "April")
+    http = client._http()
+    async with http.get(client.base_url + "/calls/history") as response:
+        history = await response.json()
+        assert response.status == 200
+        assert any(item["call_id"] == flow.call_id for item in history["calls"])
+    async with http.get(client.base_url + f"/calls/{flow.call_id}/state") as response:
+        data = await response.json()
+        assert response.status == 200
+        assert data["state"]["call_id"] == flow.call_id
+        assert (
+            data["state"]["turns"][0]["text"] == "[Demo verification details redacted]"
+        )
+        assert "token" not in str(data)
+
+
+def test_spoken_digits_are_normalized_and_never_guessed():
+    from flow import spoken_digits
+
+    assert spoken_digits("four four one seven") == "4417"
+    assert spoken_digits("4-4-1-7") == "4417"
+    assert spoken_digits("4417") == "4417"
+    assert spoken_digits("four four uh seven") == ""
+    assert spoken_digits("forty four seventeen") == ""
+
+
+@pytest.mark.asyncio
+async def test_unclear_digits_do_not_spend_a_verification_try(core):
+    client, _, _ = core
+    flow = Flow(client)
+    await flow.start("mumble-test")
+    for _ in range(4):
+        out = await flow.verify("four four, uh, seven", "April")
+        assert out.startswith("UNCLEAR")
+    # Four mumbles later the caller still has all three tries.
+    out = await flow.verify("4417", "April")
+    assert "verified" in out.lower()
+
+
+@pytest.mark.asyncio
+async def test_picking_an_earlier_doctors_time_after_comparing_still_books_it(core):
+    """Call 1 in the field: the caller compared another doctor, then chose the first
+    doctor's time. The agent said it was gone. It must re-check and offer it."""
+    client, clock, _ = core
+    flow = Flow(client)
+    await flow.start("compare-doctors")
+    await flow.verify("4417", "April")
+    await flow.record_user_turn("I want a primary care doctor.")
+    await flow.find_providers("primary care", "10023")
+    first = await flow.find_slots("P2", "2026-11-13", "afternoon")
+    p2_slot = next(s for s in flow.offered if s.startswith("S-P2-"))
+    assert p2_slot in first
+    await flow.find_slots("P4", "2026-11-11", "afternoon")  # compare another doctor
+    assert p2_slot not in flow.offered
+    clock.now += timedelta(seconds=1)
+    assert await flow.prepare(p2_slot, lambda _: Speech()) is None  # read-back played
+    assert flow.armed and "S-P2-" in p2_slot
+
+
+@pytest.mark.asyncio
+async def test_nearby_zip_outside_our_list_gets_the_nearest_doctors(core):
+    client, _, _ = core
+    flow = Flow(client)
+    await flow.start("brooklyn")
+    await flow.verify("4417", "April")
+    out = await flow.find_providers("primary care", "11209")
+    assert "couldn't find" not in out.lower()
+    assert flow.provider_options
+    far = Flow(client)
+    await far.start("beverly-hills")
+    await far.verify("2261", "June")
+    assert (
+        "couldn't find" in (await far.find_providers("primary care", "90210")).lower()
+    )

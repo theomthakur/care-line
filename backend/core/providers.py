@@ -17,7 +17,29 @@ ZIP_ORDER = {
     "10019": ["10019", "10023", "10024"],
     "10023": ["10023", "10024", "10019"],
     "10024": ["10024", "10023", "10019"],
+    # Added with the wider roster. The three above are unchanged.
+    "10001": ["10001", "10011", "10019"],
+    "10011": ["10011", "10001", "10019"],
+    "10025": ["10025", "10023", "10024"],
+    "10128": ["10128", "10023", "10025"],
 }
+
+
+def zip_order(conn, zip_code):
+    """Provider ZIPs, nearest first. Listed ZIPs keep their fixed order. Other NYC-area
+    ZIPs (100xx-119xx) fall back to the nearest ZIP in our list by number. Anything else
+    has no match."""
+    if zip_code in ZIP_ORDER:
+        return ZIP_ORDER[zip_code]
+    if not zip_code.startswith(("10", "11")):
+        return None
+    zips = {
+        r["zip"]
+        for r in conn.execute(
+            "SELECT zip FROM providers WHERE specialty='primary care'"
+        )
+    }
+    return sorted(zips, key=lambda z: (abs(int(z) - int(zip_code)), z))
 
 
 def preventive_evidence(conn, member):
@@ -42,7 +64,8 @@ def search_providers(db, call_id, specialty, zip_code):
             raise DomainError("VISIT_TYPE_UNAVAILABLE")
         evidence = preventive_evidence(conn, member)
         eligible, excluded = [], []
-        if zip_code in ZIP_ORDER:
+        order = zip_order(conn, zip_code)
+        if order:
             for provider in conn.execute(
                 "SELECT * FROM providers WHERE specialty='primary care' ORDER BY id"
             ):
@@ -63,9 +86,9 @@ def search_providers(db, call_id, specialty, zip_code):
                             else "not accepting new patients",
                         }
                     )
-                elif provider["zip"] in ZIP_ORDER[zip_code]:
+                elif provider["zip"] in order:
                     eligible.append(provider_view(provider))
-            eligible.sort(key=lambda p: (ZIP_ORDER[zip_code].index(p["zip"]), p["id"]))
+            eligible.sort(key=lambda p: (order.index(p["zip"]), p["id"]))
             eligible = eligible[:3]
         invalidate(conn, call, clear_offers=True)
         version = call["request_version"] + 1
@@ -90,7 +113,7 @@ def search_providers(db, call_id, specialty, zip_code):
             "excluded": excluded,
             "evidence": [evidence],
             "request_version": version,
-            "speak": f"The nearest eligible providers in our list are {names}. Which would you prefer?",
+            "speak": f"I found {names} near you. Which would you like?",
         }
 
 
@@ -114,5 +137,5 @@ def select_provider(db, call_id, provider_id):
             "evidence": evidence,
             "evidence_id": evidence["id"],
             "request_version": version,
-            "speak": f"You've selected {provider['name']}. {evidence['text']} What day works for you?",
+            "speak": f"Good choice, {provider['name']}. What day works for you?",
         }

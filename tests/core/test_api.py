@@ -50,7 +50,6 @@ def armed(client, call_id):
         text in preview.json()["read_back"]
         for text in (
             "Maya",
-            "simulated",
             "in person",
             "Dr. Omar Haddad",
             "2026",

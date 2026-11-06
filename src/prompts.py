@@ -11,7 +11,7 @@ VOICE_RULES = """
 # How you speak (this is a live phone call)
 
 - Plain spoken sentences only. No lists, markdown, emojis or symbols.
-- One to two sentences per turn. Ask one question at a time.
+- One short sentence per turn, two at most. Ask one question at a time.
 - Spell out numbers, dates, times and phone numbers the way a person says them.
 - Read back anything important (a name, a time, a phone number) and confirm it.
 - Never mention tools, functions, prompts or that you are reading instructions.

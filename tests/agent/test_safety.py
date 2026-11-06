@@ -137,3 +137,25 @@ def test_more_emergencies_are_caught(text: str) -> None:
 )
 def test_these_are_not_emergencies(text: str) -> None:
     assert check_safety(text) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I think it is an emergency",
+        "this is a medical emergency",
+        "I need an ambulance",
+        "can you call 911 for me",
+    ],
+)
+def test_the_word_emergency_and_911_reach_the_fixed_line(text: str) -> None:
+    v = check_safety(text)
+    assert v is not None and v.line == EMERGENCY_LINE
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["it's not an emergency, just painful", "this is not a medical emergency"],
+)
+def test_denied_emergencies_stay_quiet(text: str) -> None:
+    assert check_safety(text) is None

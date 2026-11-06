@@ -72,3 +72,53 @@ def test_reseed_on_monday_preserves_forced_weekdays(tmp_path, clock):
             ).fetchone()[0]
             == "open"
         )
+
+
+def test_expanded_roster_adds_providers_without_touching_the_originals(db, clock):
+    from backend.core.seed import seed_expanded
+
+    with db.snapshot() as conn:
+        before = [
+            tuple(r)
+            for r in conn.execute(
+                "SELECT * FROM slots WHERE provider_id IN ('P1','P2','P3','P4','P5','P6') ORDER BY id"
+            )
+        ]
+    seed_expanded(db, demo_date=clock().date())
+    seed_expanded(db, demo_date=clock().date())  # repeating changes nothing
+    with db.snapshot() as conn:
+        assert conn.execute("SELECT count(*) FROM providers").fetchone()[0] == 17
+        after = [
+            tuple(r)
+            for r in conn.execute(
+                "SELECT * FROM slots WHERE provider_id IN ('P1','P2','P3','P4','P5','P6') ORDER BY id"
+            )
+        ]
+        assert before == after
+        # Every new doctor has open times, and some are taken.
+        for n in range(7, 18):
+            states = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT state FROM slots WHERE provider_id=?", (f"P{n}",)
+                )
+            }
+            assert states == {"open", "booked"}
+
+
+def test_directory_route_lists_providers_and_open_times(db, clock):
+    from fastapi.testclient import TestClient
+
+    from backend.core.seed import seed_expanded
+    from backend.main import create_app
+
+    seed_expanded(db, demo_date=clock().date())
+    with TestClient(create_app(database=db, agent_key="k")) as c:
+        body = c.get("/providers/directory").json()
+    ids = [p["id"] for p in body["providers"]]
+    assert ids[:6] == ["P1", "P2", "P3", "P4", "P5", "P6"] and "P17" in ids
+    haddad = next(p for p in body["providers"] if p["id"] == "P2")
+    assert haddad["networks"] == ["METRO"] and haddad["open_slots"] > 0
+    assert haddad["days"] and "open" in haddad["days"][0]
+    reyes = next(p for p in body["providers"] if p["id"] == "P5")
+    assert reyes["open_slots"] == 0 and reyes["next_open"] == []

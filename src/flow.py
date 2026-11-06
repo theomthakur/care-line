@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -43,6 +44,38 @@ def line(speak: str, note: str = "") -> str:
     return f"{out}\nNotes for you, never read these out: {note}" if note else out
 
 
+_NUMBER_WORDS = {
+    "zero": "0",
+    "oh": "0",
+    "o": "0",
+    "one": "1",
+    "two": "2",
+    "to": "2",
+    "too": "2",
+    "three": "3",
+    "four": "4",
+    "for": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+}
+
+
+def spoken_digits(value: str) -> str:
+    """'four four one seven', '4-4-1-7' and '4417' all become '4417'. Nothing is guessed."""
+    out = []
+    for piece in re.split(r"[^A-Za-z0-9]+", str(value).strip().lower()):
+        if piece.isdigit():
+            out.append(piece)
+        elif piece in _NUMBER_WORDS:
+            out.append(_NUMBER_WORDS[piece])
+        elif piece:
+            return ""  # a word that is not a digit: treat the whole thing as unclear
+    return "".join(out)
+
+
 class Flow:
     def __init__(self, backend: Backend) -> None:
         self.backend = backend
@@ -53,6 +86,7 @@ class Flow:
         self.last_day = ""
         self.last_part = ""
         self.last_provider = ""
+        self.offered: set[str] = set()  # slot ids from the latest availability
         self.token: str | None = None
         self.armed = False
         self.booked: str | None = None
@@ -104,6 +138,14 @@ class Flow:
     # ---- tools ----
     async def verify(self, digits: str, birth_month: str) -> str:
         assert self.call_id
+        digits = spoken_digits(digits)
+        if len(digits) != 4:
+            # A mumbled number is not a wrong number: don't spend one of three tries.
+            return (
+                "UNCLEAR. You did not get exactly four digits. Do not guess and do not "
+                "verify. Ask the caller to say the last four digits of their member number "
+                "slowly, one at a time."
+            )
         res = await self._call(self.backend.verify, self.call_id, digits, birth_month)
         if isinstance(res, str):
             return res
@@ -219,10 +261,27 @@ class Flow:
                 res.get("speak", "I don't see an open time."),
                 "If nothing works for the caller, offer a follow-up request.",
             )
+        self.offered = {s["slot_id"] for s in res["slots"]}
         ids = ", ".join(f"{s['slot_id']} = {s['text']}" for s in res["slots"])
         return line(
             res["speak"],
             f"Slot ids for prepare_appointment: {ids}. Offer only these, as a choice.",
+        )
+
+    async def _recover_slot(self, slot_id: str) -> str | None:
+        """The model picked a time from a doctor it checked earlier. Checking another doctor
+        replaced the offered list, so look that doctor up again for that date. Returns text
+        for the model only if the time is gone."""
+        m = re.fullmatch(r"S-(P\d+)-(\d{4})(\d{2})(\d{2})-\d{4}", slot_id)
+        if not m or m.group(1) not in self.provider_options:
+            return None
+        day = f"{m.group(2)}-{m.group(3)}-{m.group(4)}"
+        out = await self.find_slots(m.group(1), day)
+        if slot_id in self.offered:
+            return None
+        return (
+            "That exact time is not open any more. Do not say the doctor is unavailable on "
+            "other days. Offer the times below.\n" + out
         )
 
     async def prepare(
@@ -230,6 +289,10 @@ class Flow:
     ) -> str | None:
         assert self.call_id
         self.token, self.armed = None, False
+        if slot_id not in self.offered:
+            lost = await self._recover_slot(slot_id)
+            if lost:
+                return lost
         s = await self._call(self.backend.slot, self.call_id, slot_id)
         if isinstance(s, str):
             return s

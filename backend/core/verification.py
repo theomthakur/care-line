@@ -1,9 +1,11 @@
 import json
 import re
+from datetime import timedelta
 
 from .common import event, get_call, get_member, identifier, member_view, utc
 from .errors import DomainError
 
+LIVE_WINDOW = timedelta(minutes=5)
 DIGITS = {
     word: str(i)
     for i, word in enumerate(
@@ -67,7 +69,7 @@ def verify_member(db, call_id, member_digits, birth_month):
             return {
                 "status": "verified",
                 "member": member_view(get_member(conn, call), now),
-                "speak": "Your demo member details are verified.",
+                "speak": "Thank you, you're verified.",
             }
         if call["verification_status"] == "locked":
             task_id = verification_task(conn, call_id, now)
@@ -94,6 +96,18 @@ def verify_member(db, call_id, member_digits, birth_month):
             raise DomainError(
                 "VERIFICATION_FAILED", persist=True, attempts_remaining=3 - attempts
             )
+        # One live call per member. A call with no activity for LIVE_WINDOW is stale
+        # (hung up without finalizing) and does not block a new one.
+        cutoff = utc(now - LIVE_WINDOW)
+        other = conn.execute(
+            """SELECT 1 FROM calls c WHERE c.member_id=? AND c.id<>? AND c.status='live'
+               AND COALESCE((SELECT MAX(received_at) FROM turns t WHERE t.call_id=c.id),
+                            c.created_at) > ?""",
+            (member["id"], call_id, cutoff),
+        ).fetchone()
+        if other and db.one_call_per_member:
+            event(conn, call_id, "member_in_use", now)
+            raise DomainError("MEMBER_IN_USE", persist=True)
         conn.execute(
             "UPDATE calls SET member_id=?,verification_status='verified' WHERE id=?",
             (member["id"], call_id),
@@ -103,5 +117,5 @@ def verify_member(db, call_id, member_digits, birth_month):
         return {
             "status": "verified",
             "member": member_view(get_member(conn, call), now),
-            "speak": "Your demo member details are verified.",
+            "speak": "Thank you, you're verified.",
         }

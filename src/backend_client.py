@@ -14,6 +14,7 @@ are agreed in contracts/ at 4:00. If a name changes there, change it here only.
 from __future__ import annotations
 
 import calendar
+import difflib
 import os
 import re
 from datetime import date, datetime, timedelta
@@ -143,6 +144,9 @@ class HttpBackend:
             {name.lower(): i for i, name in enumerate(calendar.month_abbr) if name}
         )
         month = int(value) if value.isdigit() else months.get(value)
+        if month is None and value:  # "Apriil", "Septmber": close enough to be safe
+            close = difflib.get_close_matches(value, list(months), n=1, cutoff=0.8)
+            month = months[close[0]] if close else None
         if month not in range(1, 13):
             return {
                 "ok": False,
