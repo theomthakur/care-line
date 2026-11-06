@@ -9,6 +9,11 @@ export type SegState = "done" | "current" | "failed" | "todo";
 export interface Segment { key: string; label: string; state: SegState }
 
 export function hasConflict(s: CallState): boolean {
+  // The chosen time is no longer open (e.g. another caller took it) while the draft still points at it.
+  if (!s.appointment && s.draft) {
+    const d = s.day_slots.find((x) => x.slot_id === s.draft!.slot_id);
+    if (d && d.state !== "open") return true;
+  }
   // A taken slot is "live" trouble only while nothing is booked and no draft is held.
   return !s.appointment && s.events.includes("slot_taken") && lastIndex(s.events, "slot_taken") > lastIndex(s.events, "slot_selected");
 }
@@ -21,6 +26,7 @@ export type BookingPhase = "none" | "proposed" | "awaiting_yes" | "confirmed" | 
 
 export function bookingPhase(s: CallState): BookingPhase {
   if (s.appointment) return "confirmed";
+  if (hasConflict(s)) return "conflict";
   if (s.draft?.status === "armed") return "awaiting_yes";
   if (s.draft && (s.draft.status === "slot" || s.draft.status === "preview")) return "proposed";
   if (hasConflict(s)) return "conflict";
