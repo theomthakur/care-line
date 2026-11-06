@@ -35,6 +35,9 @@ async def core(tmp_path):
     clock = Clock()
     db = Database(tmp_path / "test.db", clock=clock)
     app = create_app(database=db, agent_key="test-key")
+    from tests.security_helpers import configure_roles
+
+    configure_roles(app, tmp_path / "credentials", "test-key")
     sock = socket.socket()
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind(("127.0.0.1", 0))
@@ -203,10 +206,10 @@ async def test_core_ops_followup_and_finalize_share_database(core):
 async def test_failed_new_turn_over_real_http_disarms_prior_yes(core):
     flow = await ready(core)
     client, _, db = core
-    client._http().headers["X-Agent-Key"] = "wrong-key"
+    client._headers["X-Agent-Key"] = "wrong-key"
     with pytest.raises(BackendUnavailableError):
         await flow.record_user_turn("No, choose a different day")
-    client._http().headers["X-Agent-Key"] = "test-key"
+    client._headers["X-Agent-Key"] = "test-key"
     assert flow.armed is False and flow.token is None
     assert "NOT ARMED" in await flow.confirm()
     with db.snapshot() as conn:
@@ -255,11 +258,18 @@ async def test_history_returns_stored_redacted_call(core):
     await flow.record_user_turn("My member number is 4417 and my birth month is April")
     await flow.verify("4417", "April")
     http = client._http()
-    async with http.get(client.base_url + "/calls/history") as response:
+    from tests.security_helpers import TOKENS
+
+    headers = {"Authorization": "Bearer " + TOKENS["operator"]}
+    async with http.get(
+        client.base_url + "/calls/history", headers=headers
+    ) as response:
         history = await response.json()
         assert response.status == 200
         assert any(item["call_id"] == flow.call_id for item in history["calls"])
-    async with http.get(client.base_url + f"/calls/{flow.call_id}/state") as response:
+    async with http.get(
+        client.base_url + f"/calls/{flow.call_id}/state", headers=headers
+    ) as response:
         data = await response.json()
         assert response.status == 200
         assert data["state"]["call_id"] == flow.call_id

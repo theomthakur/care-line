@@ -38,4 +38,5 @@ def client(db):
 
     with TestClient(create_app(database=db, agent_key="core-test-key")) as test_client:
         test_client.headers["X-Agent-Key"] = "core-test-key"
+        test_client.headers["X-Call-Key"] = "core-test-call-capability-32-characters"
         yield test_client

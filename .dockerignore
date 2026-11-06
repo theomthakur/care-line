@@ -33,6 +33,13 @@ coverage/
 # Environment variables
 .env
 .env.*
+data/
+secrets/
+*.db
+*.db-wal
+*.db-shm
+*.mgbackup
+*.secret
 
 # VCS, editor, OS
 .git

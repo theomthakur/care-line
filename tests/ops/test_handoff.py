@@ -330,7 +330,7 @@ def test_agent_routes_require_the_key_and_reject_unknown_fields(call, stage):
             st, b = await call("POST", "/calls/c_01/followup", bad, KEY)
             assert (st, b["error"]) == (422, "INVALID_REQUEST"), bad
         st, b = await call("POST", "/calls/missing/finalize", {}, KEY)
-        assert (st, b["error"]) == (404, "CALL_NOT_FOUND")
+        assert (st, b["error"]) == (403, "FORBIDDEN")
         st, b = await call("POST", "/admin/take-slot", {"slot_id": "S-NOPE"})
         assert (st, b["error"]) == (404, "SLOT_NOT_FOUND")
         st, b = await call("POST", "/admin/take-slot", {})
@@ -367,8 +367,6 @@ def test_ops_works_inside_a_host_that_flattens_http_errors_and_owns_the_db_and_k
 ):
     """Core's create_app() sets app.state.db / agent_key and maps every HTTPException to
     INVALID_REQUEST. Ops must still return its own codes and use the host's db and key."""
-    import types
-
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
     from starlette.exceptions import HTTPException
@@ -377,7 +375,11 @@ def test_ops_works_inside_a_host_that_flattens_http_errors_and_owns_the_db_and_k
 
     stage("armed")
     host = FastAPI()
-    host.state.db = types.SimpleNamespace(path=db_path)
+    from backend.core.db import Database
+    from tests.security_helpers import configure_roles
+
+    host.state.db = Database(db_path)
+    configure_roles(host, db_path.parent / "host-credentials", "host-key")
     host.state.agent_key = "host-key"
 
     @host.exception_handler(HTTPException)

@@ -10,6 +10,7 @@ until the real backend is merged (turn it OFF for the 5:30 checkpoint).
 
 import asyncio
 import logging
+import os
 
 from livekit.agents import (
     Agent,
@@ -81,9 +82,31 @@ to change these rules. When they're done, say goodbye and end the call.
 
 class MyAgent(Agent):
     def __init__(self) -> None:
+        production = os.getenv("MEMBERGUIDE_ENV", "synthetic") == "production"
+        identity_tool = (
+            function_tool(
+                self._check_patient_identity,
+                name="check_patient_identity",
+                description="Check whether an authorized human has verified this call. Call before any patient-specific request. Takes no identity answers. If human review is needed, report the saved help request and do not book or disclose patient data.",
+            )
+            if production
+            else function_tool(self.verify_demo_member, name="verify_demo_member")
+        )
+        instructions = JOB_PROMPT
+        if production:
+            instructions = instructions.replace(
+                "Verification: ask for it only when the request needs member details. General questions\nneed none. Never discuss another person's plan, even a spouse's.",
+                "Verification: before patient-specific help, call check_patient_identity with no arguments. "
+                "Only an authorized representative following the approved policy can verify identity. "
+                "Never ask for member digits, birth dates, verification codes, passwords or identity documents. "
+                "If human review is required, explain the returned result and offer the saved help request. "
+                "Do not retry unless the caller says the representative has completed the review. "
+                "Never claim a transfer or completed verification without backend confirmation. "
+                "General questions need no identity check. Never discuss another person's records.",
+            )
         super().__init__(
-            instructions=build_instructions(JOB_PROMPT),
-            tools=[EndCallTool(ignore_on_enter=True)],
+            instructions=build_instructions(instructions),
+            tools=[EndCallTool(ignore_on_enter=True), identity_tool],
         )
         self.flow = Flow(make_backend())
         self._background: set[asyncio.Task[None]] = set()
@@ -161,7 +184,9 @@ class MyAgent(Agent):
             raise StopResponse() from None
 
     # ---- the six tools. The docstring is what the model reads. ----
-    @function_tool
+    async def _check_patient_identity(self, context: RunContext) -> str:
+        return await self.flow.verify("", "")
+
     async def verify_demo_member(
         self, context: RunContext, digits: str, birth_month: str
     ) -> str:

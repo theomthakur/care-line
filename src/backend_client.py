@@ -17,11 +17,14 @@ import calendar
 import difflib
 import os
 import re
+import secrets
 from datetime import date, datetime, timedelta
 from typing import Any, Protocol
 from uuid import uuid4
 
 import aiohttp
+
+from connection_security import agent_secret, validate_backend_url
 
 TIMEOUT_S = 6.0
 
@@ -67,15 +70,27 @@ class HttpBackend:
         self.base_url = (
             base_url or os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
         ).rstrip("/")
-        key = (
-            agent_key
-            if agent_key is not None
-            else os.getenv("MEMBERGUIDE_AGENT_KEY", "")
-        )
+        validate_backend_url(self.base_url)
+        key = agent_key if agent_key is not None else agent_secret()
         if not key:
             raise BackendUnavailableError("MEMBERGUIDE_AGENT_KEY is required")
         self._headers = {"X-Agent-Key": key}
         self._session: aiohttp.ClientSession | None = None
+        self._call_keys: dict[str, str] = {}
+        self._room_keys: dict[str, str] = {}
+
+    def _request_headers(self, path, body=None):
+        match = re.match(r"/calls/([^/]+)(?:/|$)", path)
+        key = self._call_keys.get(match[1], "") if match else ""
+        if path == "/calls" and body:
+            key = self._room_keys.setdefault(body["room"], secrets.token_urlsafe(32))
+        # Read mounted credentials per request so rotation does not require a
+        # worker restart. Explicit constructor keys are for isolated tests/dev.
+        headers = dict(self._headers)
+        if os.getenv("MEMBERGUIDE_AGENT_KEY_FILE"):
+            headers["X-Agent-Key"] = agent_secret()
+        headers["X-Call-Key"] = key
+        return headers
 
     def _http(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
@@ -92,14 +107,19 @@ class HttpBackend:
         self, path: str, body: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         try:
-            async with self._http().post(self.base_url + path, json=body or {}) as r:
+            async with self._http().post(
+                self.base_url + path,
+                json=body or {},
+                headers=self._request_headers(path, body),
+                allow_redirects=False,
+            ) as r:
                 data = await r.json(content_type=None)
                 status = r.status
         except (aiohttp.ClientError, TimeoutError, ValueError) as e:
             raise BackendUnavailableError(f"{path}: {e}") from e
         if not isinstance(data, dict):
             raise BackendUnavailableError(f"{path}: unreadable response")
-        if status >= 400:
+        if status >= 300:
             if (
                 400 <= status < 500
                 and isinstance(data.get("error"), str)
@@ -113,14 +133,18 @@ class HttpBackend:
 
     async def _get(self, path: str) -> dict[str, Any]:
         try:
-            async with self._http().get(self.base_url + path) as r:
+            async with self._http().get(
+                self.base_url + path,
+                headers=self._request_headers(path),
+                allow_redirects=False,
+            ) as r:
                 data = await r.json(content_type=None)
                 status = r.status
         except (aiohttp.ClientError, TimeoutError, ValueError) as e:
             raise BackendUnavailableError(f"{path}: {e}") from e
         if not isinstance(data, dict):
             raise BackendUnavailableError(f"{path}: unreadable response")
-        if status >= 400:
+        if status >= 300:
             if (
                 400 <= status < 500
                 and isinstance(data.get("error"), str)
@@ -133,11 +157,16 @@ class HttpBackend:
         return data
 
     async def start_call(self, room: str) -> dict[str, Any]:
-        return await self._post("/calls", {"room": room})
+        result = await self._post("/calls", {"room": room})
+        if result.get("ok") and result.get("call_id"):
+            self._call_keys[result["call_id"]] = self._room_keys[room]
+        return result
 
     async def verify(
         self, call_id: str, digits: str, birth_month: str
     ) -> dict[str, Any]:
+        if os.getenv("MEMBERGUIDE_ENV", "synthetic") == "production":
+            return await self._post(f"/calls/{call_id}/verify", {})
         value = str(birth_month).strip().lower()
         months = {name.lower(): i for i, name in enumerate(calendar.month_name) if name}
         months.update(
@@ -312,6 +341,10 @@ class HttpBackend:
 def make_backend() -> Backend:
     """The real backend, or the stand-in while USE_FAKE_BACKEND=1 (off by 6:00)."""
     if os.getenv("USE_FAKE_BACKEND", "0").strip() in {"1", "true", "yes"}:
+        if os.getenv("MEMBERGUIDE_ENV", "synthetic") != "synthetic":
+            raise BackendUnavailableError(
+                "Synthetic backend is forbidden in production"
+            )
         from fake_backend import FakeBackend
 
         return FakeBackend()

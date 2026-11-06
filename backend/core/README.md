@@ -1,3 +1,9 @@
+Security update: [BOOKING-SECURITY.md](../../docs/BOOKING-SECURITY.md) supersedes
+the demo identity, shared-key, console-access, storage and retention assumptions
+below. Production requires scoped role credentials, human identity review,
+HTTPS, a separate organization database and approved policy/storage evidence.
+The old demographic verification examples apply only to synthetic development.
+
 MemberGuide core implements the agreed `contracts/api.md`, `errors.md` and
 `schema.sql`. Every record is synthetic; every appointment is simulated.
 
@@ -16,7 +22,7 @@ private key. To restart with that same configuration:
 uv run uvicorn backend.main:app --env-file .env.memberguide --host 127.0.0.1 --port 8000
 ```
 
-Startup creates `data/memberguide.db` using the contract DDL and seeds the three
+Synthetic startup creates `data/synthetic/memberguide.db` using the contract DDL and seeds the three
 members, two plans, six providers, verbatim plan passages and ten business days
 of 30-minute Eastern slots. `MEMBERGUIDE_DB_PATH` overrides the database path.
 No key is invented when configuration is absent: agent requests fail closed.
@@ -26,7 +32,7 @@ Optional repeatable initialization (does not change the service's real clock):
 
 ```sh
 uv run python -m backend.core.seed --date 2026-11-06
-uv run python -m backend.core.seed --db /tmp/memberguide-demo.db --date 2026-11-06
+uv run python -m backend.core.seed --db /tmp/memberguide-demo/memberguide.db --date 2026-11-06
 ```
 
 The seed uses a fixed occupancy pattern and preserves existing slots and
@@ -56,10 +62,16 @@ Om's adapter can call all core routes now; OpenAPI is at `/docs`:
 ```sh
 curl -s http://127.0.0.1:8000/calls \
   -H "X-Agent-Key: $MEMBERGUIDE_AGENT_KEY" \
+  -H "X-Call-Key: $CALL_CAPABILITY" \
   -H 'Content-Type: application/json' -d '{"room":"unique-demo-room"}'
 ```
 
-Use the returned call ID with `/calls/{id}/verify` (`4417`, birth month `4`),
+Generate `CALL_CAPABILITY` as a random secret of at least 32 characters before
+creating a call. Include it and the service credential on every call request;
+room retries require the same capability and owning service subject. The voice
+adapter manages this automatically. Call IDs are never authorization.
+
+In synthetic mode, use the returned call ID with `/calls/{id}/verify` (`4417`, birth month `4`),
 then `/providers` (`primary care`, ZIP `10023`), `/select` (`P2`), `/dates`,
 `/availability`, `/slot`, and `/appointment/preview`. Dates must come from the
 backend clock; the fixed November 13 examples only apply to the reference demo.

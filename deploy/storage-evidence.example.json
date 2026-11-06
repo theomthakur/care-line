@@ -1,0 +1,9 @@
+{
+  "organization": "",
+  "encrypted_volume_id": "",
+  "database_directory": "/srv/memberguide/database",
+  "restricted_access_review": "",
+  "encrypted_backup_location": "",
+  "recovery_test_reference": "",
+  "valid_until": ""
+}

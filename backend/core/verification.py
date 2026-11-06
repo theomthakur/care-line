@@ -37,11 +37,11 @@ def verification_task(conn, call_id, now):
     packet = {
         "reference": reference,
         "category": "verification_failed",
-        "summary": "Demo member verification failed after three attempts.",
+        "summary": "Patient identity requires a member services review.",
         "detail": "The caller could not be verified. No member information was disclosed.",
         "caller_verified": False,
         "plan": None,
-        "already_tried": ["Three demo verification attempts"],
+        "already_tried": ["Automated access withheld pending identity review"],
         "suggested_next_action": "A member services representative should help verify the caller.",
     }
     conn.execute(
@@ -75,6 +75,11 @@ def verify_member(db, call_id, member_digits, birth_month):
             task_id = verification_task(conn, call_id, now)
             raise DomainError(
                 "LOCKED", persist=True, attempts_remaining=0, task_id=task_id
+            )
+        if db.environment != "synthetic":
+            task_id = verification_task(conn, call_id, now)
+            raise DomainError(
+                "HUMAN_VERIFICATION_REQUIRED", persist=True, task_id=task_id
             )
         digits = normalize_digits(member_digits)
         member = conn.execute(

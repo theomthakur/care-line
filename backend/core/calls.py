@@ -5,6 +5,11 @@ from .errors import DomainError
 
 
 def create_call(db, room):
+    from backend.security import access_context, authorize_call, digest
+
+    access = access_context.get()
+    if access is not None and len(access.call_key) < 32:
+        raise DomainError("FORBIDDEN")
     with db.transaction() as conn:
         call = conn.execute("SELECT * FROM calls WHERE room=?", (room,)).fetchone()
         status = 200
@@ -15,9 +20,16 @@ def create_call(db, room):
                 "INSERT INTO calls(id,room,created_at) VALUES (?,?,?)",
                 (call_id, room, utc(now)),
             )
+            if access is not None:
+                conn.execute(
+                    "INSERT INTO call_access VALUES (?,?,?)",
+                    (call_id, access.principal.subject, digest(access.call_key)),
+                )
             event(conn, call_id, "call_created", now)
             call = get_call(conn, call_id)
             status = 201
+        elif access is not None:
+            authorize_call(conn, call["id"], access)
         return {
             "call_id": call["id"],
             # Return the original creation receipt on room-key replay, including
@@ -31,6 +43,8 @@ def create_call(db, room):
 def store_turn(db, call_id, client_turn_id, role, text):
     with db.transaction() as conn:
         call = get_call(conn, call_id, live=False)
+        if db.environment == "production" and call["verification_status"] != "verified":
+            text = "[identity pending]"
         previous = conn.execute(
             "SELECT * FROM turns WHERE call_id=? AND client_turn_id=?",
             (call_id, client_turn_id),

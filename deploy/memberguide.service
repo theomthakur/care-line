@@ -1,0 +1,29 @@
+[Unit]
+Description=MemberGuide organization booking API
+After=network-online.target
+Wants=network-online.target
+# This must be an encrypted volume provisioned and reviewed by the operator.
+RequiresMountsFor=/srv/memberguide
+ConditionPathIsMountPoint=/srv/memberguide
+
+[Service]
+Type=simple
+User=memberguide
+Group=memberguide
+WorkingDirectory=/opt/memberguide
+EnvironmentFile=/etc/memberguide/runtime.env
+UMask=0077
+# Bind to an approved private interface; expose only TLS to the voice workers.
+# No forwarded headers are trusted in this direct-TLS configuration.
+ExecStart=/opt/memberguide/.venv/bin/uvicorn backend.main:app --host ${MEMBERGUIDE_BIND_ADDRESS} --port 8443 --workers 1 --no-proxy-headers --no-access-log --ssl-certfile /etc/memberguide/tls/certificate.pem --ssl-keyfile /etc/memberguide/tls/private-key.pem
+Restart=on-failure
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/memberguide/database
+ReadOnlyPaths=/etc/memberguide
+LimitCORE=0
+
+[Install]
+WantedBy=multi-user.target
