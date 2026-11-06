@@ -1,0 +1,18 @@
+{
+  "provider": {
+    "id": "P2",
+    "name": "Dr. Omar Haddad",
+    "specialty": "primary care",
+    "zip": "10023",
+    "phone": "212-555-0102",
+    "accepting_new_patients": true
+  },
+  "evidence": {
+    "id": "GOLD-PREV",
+    "title": "Preventive care",
+    "text": "One annual preventive visit with an in-network primary care provider is covered at no cost share when billed as preventive. Other services during the visit may be billed separately."
+  },
+  "evidence_id": "GOLD-PREV",
+  "request_version": 2,
+  "speak": "Dr. Haddad's office number is 212-555-0102. Your plan passage covers one annual in-network preventive visit when billed as preventive; other services may be billed separately."
+}

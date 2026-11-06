@@ -1,0 +1,14 @@
+{
+  "candidates": [
+    {
+      "date": "2026-11-06",
+      "text": "Friday, November 6, 2026"
+    },
+    {
+      "date": "2026-11-13",
+      "text": "Friday, November 13, 2026"
+    }
+  ],
+  "needs_clarification": true,
+  "speak": "Do you mean Friday, November 6, or Friday, November 13?"
+}

@@ -1,0 +1,50 @@
+{
+  "state": {
+    "call_id": "c_01",
+    "status": "live",
+    "verified": true,
+    "member": {
+      "name": "Maya T.",
+      "id_masked": "***4417",
+      "plan": "Gold 2026",
+      "network": "METRO",
+      "active": true
+    },
+    "request": {
+      "version": 0,
+      "specialty": null,
+      "zip": null
+    },
+    "turns": [
+      {
+        "seq": 1,
+        "role": "user",
+        "text": "[Demo verification details redacted]",
+        "received_at": "2026-11-06T21:00:02Z",
+        "t": 2.0
+      },
+      {
+        "seq": 2,
+        "role": "assistant",
+        "text": "Thank you, Maya. Your demo details are verified.",
+        "received_at": "2026-11-06T21:00:05Z",
+        "t": 5.0
+      }
+    ],
+    "providers": [],
+    "excluded": [],
+    "selected": null,
+    "evidence": [],
+    "offered_slots": [],
+    "draft": null,
+    "appointment": null,
+    "day_slots": [],
+    "tasks": [],
+    "summary": null,
+    "events": [
+      "call_created",
+      "verified"
+    ]
+  },
+  "speak": ""
+}
