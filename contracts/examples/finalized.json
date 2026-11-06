@@ -1,0 +1,9 @@
+{
+  "summary": {
+    "outcome": "booked",
+    "reason": "Find a new-patient primary care doctor near 10023 and book a visit.",
+    "text": "Maya T. verified against synthetic records and booked a simulated new-patient visit with Dr. Omar Haddad on Friday, November 13, 2026 at 3:00 PM Eastern time. Confirmation MG-APT-4821.",
+    "confirmation": "MG-APT-4821"
+  },
+  "speak": ""
+}

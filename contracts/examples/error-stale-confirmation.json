@@ -1,0 +1,4 @@
+{
+  "error": "STALE_CONFIRMATION",
+  "speak": "Those details changed or the confirmation expired. I'll read the current choice back."
+}

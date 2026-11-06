@@ -1,0 +1,6 @@
+{
+  "error": "LOCKED",
+  "speak": "I couldn't verify those details after three tries. I've saved a follow-up request.",
+  "attempts_remaining": 0,
+  "task_id": "task_verify_c_02"
+}

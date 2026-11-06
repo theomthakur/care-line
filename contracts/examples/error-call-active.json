@@ -1,0 +1,4 @@
+{
+  "error": "CALL_ACTIVE",
+  "speak": "The demo can't be reset while a call or booking is in progress."
+}

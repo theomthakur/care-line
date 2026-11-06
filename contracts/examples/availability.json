@@ -1,0 +1,22 @@
+{
+  "slots": [
+    {
+      "slot_id": "S-P2-1113-1430",
+      "provider_id": "P2",
+      "starts_at": "2026-11-13T19:30:00Z",
+      "ends_at": "2026-11-13T20:00:00Z",
+      "timezone": "America/New_York",
+      "text": "Friday, November 13, 2026 at 2:30 PM Eastern time"
+    },
+    {
+      "slot_id": "S-P2-1113-1500",
+      "provider_id": "P2",
+      "starts_at": "2026-11-13T20:00:00Z",
+      "ends_at": "2026-11-13T20:30:00Z",
+      "timezone": "America/New_York",
+      "text": "Friday, November 13, 2026 at 3:00 PM Eastern time"
+    }
+  ],
+  "request_version": 3,
+  "speak": "Friday, November 13 has 2:30 PM or 3:00 PM Eastern time. Which would you prefer?"
+}
