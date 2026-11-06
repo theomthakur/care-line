@@ -5,6 +5,8 @@ import { isRedacted, shortClock } from "../format";
 import { Empty } from "./ui";
 
 const NEAR_BOTTOM = 56;
+/** Long calls render only the newest turns; older ones load on demand. */
+export const WINDOW = 200;
 
 /**
  * Auto-scrolls to new turns only while the operator is already at the bottom. If they
@@ -17,6 +19,9 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
   const lastSeq = useRef(0);
   const lastCall = useRef(callId);
   const [unseen, setUnseen] = useState(0);
+  const [all, setAll] = useState(false);
+  const hidden = all ? 0 : Math.max(0, turns.length - WINDOW);
+  const shown = hidden ? turns.slice(hidden) : turns;
 
   const toBottom = (smooth: boolean) => {
     const el = ref.current;
@@ -30,6 +35,7 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
       lastSeq.current = 0;
       pinned.current = true;
       setUnseen(0);
+      setAll(false);
     }
     const newest = turns.length ? turns[turns.length - 1].seq : 0;
     const added = turns.filter((t) => t.seq > lastSeq.current).length;
@@ -62,7 +68,22 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
   return (
     <>
       <div className="transcript" ref={ref} role="log" aria-live="polite" aria-label="Call transcript">
-        {turns.map((t) => (
+        {hidden > 0 && (
+          <div style={{ textAlign: "center", marginBottom: 12 }}>
+            <button
+              className="btn sm"
+              onClick={() => {
+                const el = ref.current;
+                const before = el ? el.scrollHeight - el.scrollTop : 0;
+                setAll(true);
+                requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight - before; });
+              }}
+            >
+              Show {hidden} earlier {hidden === 1 ? "message" : "messages"}
+            </button>
+          </div>
+        )}
+        {shown.map((t) => (
           <div key={t.seq} className={`turn ${t.role}`}>
             <div className="who">
               <span className={`avatar ${t.role === "user" ? "caller" : "agent"}`} aria-hidden="true">

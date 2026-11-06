@@ -147,3 +147,36 @@ export interface ApiErrorBody {
   error: string;
   speak?: string;
 }
+
+// ---- multi-call console (GET /calls, GET /calls/{id}/state) ------------------------------
+
+export type CallStage =
+  | "unverified"
+  | "locked"
+  | "verified"
+  | "searching"
+  | "offering"
+  | "readback"
+  | "awaiting_yes"
+  | "conflict"
+  | "booked"
+  | "followup"
+  | "ended";
+
+/** One row of the call list. Built by the backend from stored rows; never contains secrets. */
+export interface CallSummary {
+  call_id: string;
+  status: CallStatus;
+  verification: "unverified" | "verified" | "locked";
+  member: { name: string; id_masked: string } | null;
+  stage: CallStage;
+  created_at: string;
+  finalized_at: string | null;
+  last_activity_at: string;
+  turn_count: number;
+  task_count: number;
+  open_tasks: number;
+  outcome: SummaryOutcome | null;
+  confirmation: string | null;
+  last_turn: { role: TurnRole; text: string } | null;
+}
