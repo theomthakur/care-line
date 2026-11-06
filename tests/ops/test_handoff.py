@@ -357,3 +357,55 @@ def test_state_is_json_serialisable_for_every_stage(conn, stage):
     ):
         stage(name)
         json.dumps(build_state(conn))
+
+
+# ---------------------------------------------------------------- hosted inside core's app shape
+
+
+def test_ops_works_inside_a_host_that_flattens_http_errors_and_owns_the_db_and_key(
+    db_path, conn, stage
+):
+    """Core's create_app() sets app.state.db / agent_key and maps every HTTPException to
+    INVALID_REQUEST. Ops must still return its own codes and use the host's db and key."""
+    import types
+
+    from fastapi import FastAPI
+    from fastapi.responses import JSONResponse
+    from starlette.exceptions import HTTPException
+
+    from backend import ops
+
+    stage("armed")
+    host = FastAPI()
+    host.state.db = types.SimpleNamespace(path=db_path)
+    host.state.agent_key = "host-key"
+
+    @host.exception_handler(HTTPException)
+    async def flatten(request, exc):
+        return JSONResponse(
+            {"error": "INVALID_REQUEST", "speak": "x"}, status_code=exc.status_code
+        )
+
+    host.include_router(ops.router)  # not install(): the host owns its error handlers
+
+    from tests.ops.conftest import asgi_caller
+
+    call = asgi_caller(host)
+
+    async def flow():
+        st, b = await call("GET", "/calls/latest")
+        assert st == 200 and b["state"]["call_id"] == "c_01"
+        st, b = await call("POST", "/admin/reset", {})
+        assert (st, b["error"]) == (409, "CALL_ACTIVE")
+        st, b = await call("POST", "/tasks/nope/complete", {})
+        assert (st, b["error"]) == (404, "TASK_NOT_FOUND")
+        st, _ = await call(
+            "POST", "/calls/c_01/finalize", {}, {"X-Agent-Key": "dev-agent-key"}
+        )
+        assert st == 401  # the host's key is authoritative, not the dev default
+        st, b = await call(
+            "POST", "/calls/c_01/finalize", {}, {"X-Agent-Key": "host-key"}
+        )
+        assert st == 200 and b["summary"]["outcome"] == "not_completed"
+
+    asyncio.run(flow())

@@ -62,8 +62,9 @@ def app(db_path):
     return a
 
 
-@pytest.fixture
-def call(app):
+def asgi_caller(app):
+    """Minimal ASGI client so route tests need no extra dependency."""
+
     async def _call(method: str, path: str, body=None, headers=None):
         raw = b"" if body is None else json.dumps(body).encode()
         hdrs = [
@@ -106,3 +107,8 @@ def call(app):
         return out["status"], json.loads(out["body"] or b"null")
 
     return _call
+
+
+@pytest.fixture
+def call(app):
+    return asgi_caller(app)

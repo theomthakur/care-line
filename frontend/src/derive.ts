@@ -66,6 +66,7 @@ const EVENT_LABELS: Record<string, { label: string; tone: Tone }> = {
   slot_taken: { label: "Slot taken by another caller", tone: "bad" },
   preview_invalidated: { label: "Read-back voided. A new one is needed", tone: "warn" },
   booked: { label: "Appointment committed to the schedule", tone: "good" },
+  appointment_booked: { label: "Appointment committed to the schedule", tone: "good" }, // core's event name
   followup_created: { label: "Follow-up handoff saved", tone: "info" },
   finalized: { label: "Call ended and summarized", tone: "neutral" },
   zip_changed: { label: "Caller corrected the ZIP", tone: "info" },
