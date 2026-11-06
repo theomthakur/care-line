@@ -25,6 +25,23 @@ ZIP_ORDER = {
 }
 
 
+def zip_order(conn, zip_code):
+    """Provider ZIPs, nearest first. Listed ZIPs keep their fixed order. Other NYC-area
+    ZIPs (100xx-119xx) fall back to the nearest ZIP in our list by number. Anything else
+    has no match."""
+    if zip_code in ZIP_ORDER:
+        return ZIP_ORDER[zip_code]
+    if not zip_code.startswith(("10", "11")):
+        return None
+    zips = {
+        r["zip"]
+        for r in conn.execute(
+            "SELECT zip FROM providers WHERE specialty='primary care'"
+        )
+    }
+    return sorted(zips, key=lambda z: (abs(int(z) - int(zip_code)), z))
+
+
 def preventive_evidence(conn, member):
     row = conn.execute(
         "SELECT id,title,text FROM plan_sections WHERE plan_id=? AND topic='preventive'",
@@ -47,7 +64,8 @@ def search_providers(db, call_id, specialty, zip_code):
             raise DomainError("VISIT_TYPE_UNAVAILABLE")
         evidence = preventive_evidence(conn, member)
         eligible, excluded = [], []
-        if zip_code in ZIP_ORDER:
+        order = zip_order(conn, zip_code)
+        if order:
             for provider in conn.execute(
                 "SELECT * FROM providers WHERE specialty='primary care' ORDER BY id"
             ):
@@ -68,9 +86,9 @@ def search_providers(db, call_id, specialty, zip_code):
                             else "not accepting new patients",
                         }
                     )
-                elif provider["zip"] in ZIP_ORDER[zip_code]:
+                elif provider["zip"] in order:
                     eligible.append(provider_view(provider))
-            eligible.sort(key=lambda p: (ZIP_ORDER[zip_code].index(p["zip"]), p["id"]))
+            eligible.sort(key=lambda p: (order.index(p["zip"]), p["id"]))
             eligible = eligible[:3]
         invalidate(conn, call, clear_offers=True)
         version = call["request_version"] + 1

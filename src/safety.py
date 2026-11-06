@@ -17,7 +17,10 @@ from typing import Literal
 
 Kind = Literal["emergency", "self_harm", "ask"]
 
-EMERGENCY_LINE = "This sounds urgent. Please hang up and call 911 now."
+EMERGENCY_LINE = (
+    "This sounds urgent. Please hang up and call 911 now. "
+    "I can't place the call for you, so please call right away."
+)
 SELF_HARM_LINE = "Please call or text 988 now to reach someone who can help."
 ASK_LINE = "Is that happening right now?"
 
@@ -46,6 +49,11 @@ _EMERGENCY = [
     r"unconscious",
     r"passed out",
     r"seizure",
+    r"(?:it|this|that)(?:'?s| is) (?:a |an )?(?:medical )?emergency",
+    r"(?:medical )?emergency",
+    r"ambulance",
+    r"(?:call|dial|need|get) (?:me )?(?:911|nine one one)",
+    r"\b911\b",
     r"(?:can'?t|cannot) feel my (?:arm|arms|leg|legs|face|hand|hands)",
     r"numb(?:ness)? (?:in|on) (?:my|one side|the)\b",
     r"face (?:is )?drooping",

@@ -290,3 +290,40 @@ async def test_unclear_digits_do_not_spend_a_verification_try(core):
     # Four mumbles later the caller still has all three tries.
     out = await flow.verify("4417", "April")
     assert "verified" in out.lower()
+
+
+@pytest.mark.asyncio
+async def test_picking_an_earlier_doctors_time_after_comparing_still_books_it(core):
+    """Call 1 in the field: the caller compared another doctor, then chose the first
+    doctor's time. The agent said it was gone. It must re-check and offer it."""
+    client, clock, _ = core
+    flow = Flow(client)
+    await flow.start("compare-doctors")
+    await flow.verify("4417", "April")
+    await flow.record_user_turn("I want a primary care doctor.")
+    await flow.find_providers("primary care", "10023")
+    first = await flow.find_slots("P2", "2026-11-13", "afternoon")
+    p2_slot = next(s for s in flow.offered if s.startswith("S-P2-"))
+    assert p2_slot in first
+    await flow.find_slots("P4", "2026-11-11", "afternoon")  # compare another doctor
+    assert p2_slot not in flow.offered
+    clock.now += timedelta(seconds=1)
+    assert await flow.prepare(p2_slot, lambda _: Speech()) is None  # read-back played
+    assert flow.armed and "S-P2-" in p2_slot
+
+
+@pytest.mark.asyncio
+async def test_nearby_zip_outside_our_list_gets_the_nearest_doctors(core):
+    client, _, _ = core
+    flow = Flow(client)
+    await flow.start("brooklyn")
+    await flow.verify("4417", "April")
+    out = await flow.find_providers("primary care", "11209")
+    assert "couldn't find" not in out.lower()
+    assert flow.provider_options
+    far = Flow(client)
+    await far.start("beverly-hills")
+    await far.verify("2261", "June")
+    assert (
+        "couldn't find" in (await far.find_providers("primary care", "90210")).lower()
+    )

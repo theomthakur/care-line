@@ -86,6 +86,7 @@ class Flow:
         self.last_day = ""
         self.last_part = ""
         self.last_provider = ""
+        self.offered: set[str] = set()  # slot ids from the latest availability
         self.token: str | None = None
         self.armed = False
         self.booked: str | None = None
@@ -260,10 +261,27 @@ class Flow:
                 res.get("speak", "I don't see an open time."),
                 "If nothing works for the caller, offer a follow-up request.",
             )
+        self.offered = {s["slot_id"] for s in res["slots"]}
         ids = ", ".join(f"{s['slot_id']} = {s['text']}" for s in res["slots"])
         return line(
             res["speak"],
             f"Slot ids for prepare_appointment: {ids}. Offer only these, as a choice.",
+        )
+
+    async def _recover_slot(self, slot_id: str) -> str | None:
+        """The model picked a time from a doctor it checked earlier. Checking another doctor
+        replaced the offered list, so look that doctor up again for that date. Returns text
+        for the model only if the time is gone."""
+        m = re.fullmatch(r"S-(P\d+)-(\d{4})(\d{2})(\d{2})-\d{4}", slot_id)
+        if not m or m.group(1) not in self.provider_options:
+            return None
+        day = f"{m.group(2)}-{m.group(3)}-{m.group(4)}"
+        out = await self.find_slots(m.group(1), day)
+        if slot_id in self.offered:
+            return None
+        return (
+            "That exact time is not open any more. Do not say the doctor is unavailable on "
+            "other days. Offer the times below.\n" + out
         )
 
     async def prepare(
@@ -271,6 +289,10 @@ class Flow:
     ) -> str | None:
         assert self.call_id
         self.token, self.armed = None, False
+        if slot_id not in self.offered:
+            lost = await self._recover_slot(slot_id)
+            if lost:
+                return lost
         s = await self._call(self.backend.slot, self.call_id, slot_id)
         if isinstance(s, str):
             return s
