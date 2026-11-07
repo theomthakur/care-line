@@ -12,6 +12,8 @@ import type {
   Provider,
   Slot,
   Summary,
+  SummaryDetails,
+  CallSummaryDoc,
   Task,
   Turn,
 } from "./types";
@@ -37,6 +39,7 @@ async function request<T>(path: string, init?: RequestInit, signal?: AbortSignal
     res = await fetch(path, {
       ...init,
       signal,
+      cache: "no-store", // case data must not be served from a browser or proxy cache
       headers: { "Content-Type": "application/json", Accept: "application/json" },
     });
   } catch (e) {
@@ -173,7 +176,6 @@ export function normalizeSummary(raw: unknown): CallSummary | null {
   const c = obj<Record<string, unknown>>(raw);
   if (!c || typeof c.call_id !== "string" || !c.call_id) return null;
   const m = obj<Record<string, unknown>>(c.member);
-  const lt = obj<Record<string, unknown>>(c.last_turn);
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
   const created = str(c.created_at);
   return {
@@ -190,7 +192,6 @@ export function normalizeSummary(raw: unknown): CallSummary | null {
     open_tasks: num(c.open_tasks),
     outcome: typeof c.outcome === "string" ? (c.outcome as CallSummary["outcome"]) : null,
     confirmation: typeof c.confirmation === "string" ? c.confirmation : null,
-    last_turn: lt && typeof lt.text === "string" ? { role: lt.role === "assistant" ? "assistant" : "user", text: lt.text } : null,
   };
 }
 
@@ -232,4 +233,45 @@ export async function getCallHistory(signal?: AbortSignal): Promise<CallListItem
 export async function getCallById(id: string, signal?: AbortSignal): Promise<CallState | null> {
   const body = await request<{ state?: unknown }>(`/calls/${encodeURIComponent(id)}/state`, undefined, signal);
   return normalizeState(body.state);
+}
+
+const VERIFICATION = ["verified", "failed", "locked", "not_attempted"] as const;
+
+export function normalizeDetails(raw: unknown): SummaryDetails | null {
+  const d = obj<Record<string, unknown>>(raw);
+  if (!d) return null;
+  const prov = obj<Record<string, unknown>>(d.provider);
+  const appt = obj<Record<string, unknown>>(d.appointment);
+  return {
+    verification: (VERIFICATION as readonly string[]).includes(d.verification as string) ? (d.verification as SummaryDetails["verification"]) : "not_attempted",
+    provider: prov && typeof prov.name === "string" ? { name: prov.name, phone: typeof prov.phone === "string" ? prov.phone : null } : null,
+    appointment:
+      appt && typeof appt.confirmation === "string"
+        ? { confirmation: appt.confirmation, when: str(appt.when), doctor: str(appt.doctor), phone: typeof appt.phone === "string" ? appt.phone : null }
+        : null,
+    problems: arr<string>(d.problems).filter((x) => typeof x === "string"),
+    follow_ups: arr<Record<string, unknown>>(d.follow_ups)
+      .filter((f) => f && typeof f.reference === "string")
+      .map((f) => ({
+        reference: f.reference as string,
+        status: f.status === "completed" ? ("completed" as const) : ("open" as const),
+        category: typeof f.category === "string" ? f.category : null,
+        next_action: str(f.next_action),
+      })),
+    next_action: str(d.next_action),
+  };
+}
+
+/** GET /calls/{id}/summary. Resolves to null for an unknown call. */
+export async function getCallSummary(callId: string, signal?: AbortSignal): Promise<CallSummaryDoc | null> {
+  try {
+    const body = await request<{ status?: unknown; summary?: unknown; details?: unknown }>(`/calls/${encodeURIComponent(callId)}/summary`, undefined, signal);
+    const details = normalizeDetails(body.details);
+    if (!details) throw new ApiError(200, "BAD_RESPONSE", "The backend returned an unreadable summary.");
+    const sum = obj<Summary>(body.summary);
+    return { status: body.status === "finalized" ? "finalized" : "live", summary: sum && typeof sum.outcome === "string" ? sum : null, details };
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "CALL_NOT_FOUND") return null;
+    throw e;
+  }
 }

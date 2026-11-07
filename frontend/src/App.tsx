@@ -1,14 +1,20 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { CloudOff, FlaskConical, MessageSquare, PhoneCall, PhoneOff, RefreshCw, SearchX, WifiOff } from "lucide-react";
-import { getCallHistory, getCallState, getCalls, type CallListItem } from "./api";
+import { CloudOff, FlaskConical, MessageSquare, PhoneCall, RefreshCw, SearchX, WifiOff } from "lucide-react";
+import { getCallState, getCallSummary, getCalls } from "./api";
 import { Providers } from "./Providers";
-import { ProductShell, History, Architecture, Deck, Developer, type Section } from "./ProductShell";
-import { ago, callStartedAt, lastTurn, mmss, shortClock, shortId } from "./format";
+import { Architecture, Deck, Developer } from "./pages/Explore";
+import { Overview } from "./pages/Overview";
+import { FollowUps } from "./pages/FollowUps";
+import { ago, shortClock } from "./format";
 import { FIXTURE_STAGES } from "./fixtures";
 import { usePoll, type Connection } from "./usePolling";
-import { summaryFromState } from "./derive";
-import { Conversations } from "./components/Conversations";
-import type { CallState } from "./types";
+import { needsAttention, summaryFromState } from "./derive";
+import { useRoute, type View } from "./route";
+import { useTheme } from "./theme";
+import { AppShell } from "./components/AppShell";
+import { ConversationList } from "./components/ConversationList";
+import { CaseHeader } from "./components/CaseHeader";
+import type { CallState, SummaryDetails } from "./types";
 import { Transcript } from "./components/Transcript";
 import { EvidencePanel, MemberPanel, ProviderPanel, RequestPanel } from "./components/ContextPanels";
 import { ActivityTimeline, BookingCard, HandoffPanel, SlotList, SummaryPanel } from "./components/OutcomePanels";
@@ -16,6 +22,16 @@ import { DemoControls, DemoMemberCard } from "./components/DemoControls";
 import { Card, Chip, SkeletonLines } from "./components/ui";
 
 const isFixture = new URLSearchParams(window.location.search).get("source") === "fixture";
+
+const TITLES: Record<View, string> = {
+  overview: "Overview",
+  conversations: "Conversations",
+  followups: "Follow-ups",
+  providers: "Providers",
+  architecture: "System design",
+  presentation: "Presentation",
+  developer: "Developer view",
+};
 
 function useTick(ms: number) {
   const [, set] = useState(0);
@@ -40,16 +56,10 @@ function ConnectionBadge({ connection, lastOk, fixture, onRetry }: { connection:
 
 function Skeleton() {
   return (
-    <div className="workspace" aria-busy="true" aria-label="Loading">
-      {[0, 1, 2].map((c) => (
-        <div className="col" key={c}>
-          {[0, 1, 2].slice(0, c === 0 ? 1 : 3).map((i) => (
-            <Card key={i} title={<span className="skel" style={{ display: "inline-block", width: 96, height: 12 }} />} bodyClass="card-body">
-              <SkeletonLines rows={c === 0 ? 7 : 4} />
-            </Card>
-          ))}
-        </div>
-      ))}
+    <div className="case-skel" aria-busy="true" aria-label="Loading">
+      <Card title={<span className="skel" style={{ display: "inline-block", width: 120, height: 12 }} />}>
+        <SkeletonLines rows={6} />
+      </Card>
     </div>
   );
 }
@@ -61,7 +71,7 @@ function Idle() {
         <div className="halo"><PhoneCall size={32} strokeWidth={1.75} /></div>
         <div>
           <h2>Waiting for the next call</h2>
-          <p>The console follows the latest call from the moment it connects: the transcript, who the caller is, which doctors were offered and why, and what was actually booked.</p>
+          <p>When a member calls, the conversation opens here: what they said, who they are, which doctors were offered, and what was booked.</p>
         </div>
         <DemoMemberCard />
         <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>Hand this card to the caller. It is a printed synthetic card, not a verified state.</p>
@@ -74,7 +84,7 @@ function Unreachable({ error, onRetry }: { error: string; onRetry: () => void })
   return (
     <div className="hero">
       <div className="hero-inner">
-        <div className="halo" style={{ background: "var(--red-50)", color: "var(--red-700)", boxShadow: "inset 0 0 0 1px var(--red-100), 0 0 0 10px rgba(163,40,28,.05)" }}><CloudOff size={32} strokeWidth={1.75} /></div>
+        <div className="halo bad"><CloudOff size={32} strokeWidth={1.75} /></div>
         <div>
           <h2>Can't reach the backend</h2>
           <p>{error} Nothing on this screen is a guess: the console shows backend state only, so it shows nothing until the connection is back.</p>
@@ -89,57 +99,38 @@ function Unreachable({ error, onRetry }: { error: string; onRetry: () => void })
   );
 }
 
-function CallBar({ s }: { s: CallState }) {
-  const live = s.status === "live";
-  const last = lastTurn(s.turns);
-  const started = callStartedAt(s);
-  return (
-    <div className="callbar">
-      <div className="callbar-title">
-        <h1 title={s.call_id}>Call <span className="mono">#{shortId(s.call_id)}</span></h1>
-        {live ? <Chip tone="green" lg><span className="dot pulse" /> Live</Chip> : <Chip lg><PhoneOff size={12} /> Ended</Chip>}
-      </div>
-      <div className="callbar-meta">
-        <span>Started <b>{started ? `${shortClock(started)} ET` : "—"}</b></span>
-        <span className="sep" />
-        <span>{live ? "Latest turn at" : "Length"} <b className="num">{last ? mmss(last.t) : "—"}</b></span>
-        <span className="sep" />
-        <span><b className="num">{s.turns.length}</b> {s.turns.length === 1 ? "turn" : "turns"}</span>
-      </div>
-      <span className="callbar-spacer" />
-      <Chip tone="outline">Synthetic demo data</Chip>
-      <Chip tone="outline">Simulated provider schedule</Chip>
-    </div>
-  );
-}
+export type Tab = "calls" | "call" | "case";
 
-export type Tab = "calls" | "call" | "context" | "outcome";
-
-const Workspace = memo(function Workspace({ s, tab, canAct, onChanged, stale }: { s: CallState; tab: Tab; canAct: boolean; onChanged: () => void; stale: boolean }) {
-  const cls = (t: Tab) => (tab === t ? "active" : "");
+/**
+ * One complete case for ONE call. Re-keyed by call id by the caller, so nothing (scroll position,
+ * open panels, drafts) can leak from one conversation into another.
+ */
+const Case = memo(function Case({ s, tab, canAct, onChanged, stale, details, developer }: { s: CallState; tab: Tab; canAct: boolean; onChanged: () => void; stale: boolean; details: SummaryDetails | null | undefined; developer: boolean }) {
   const live = s.status === "live";
+  const summary = !live || s.summary ? <SummaryPanel s={s} details={details} /> : null;
   return (
-    <main className={`workspace ${stale ? "is-stale" : ""}`}>
-      <div className={`col col-fill col-call ${cls("call")}`}>
-        <Card className="fill" title="Conversation" icon={<MessageSquare size={15} />} meta={live ? <Chip tone="green"><span className="dot" /> Updating live</Chip> : "Final transcript"} bodyClass="card-body" label="Conversation">
-          <Transcript turns={s.turns} live={live} callId={s.call_id} />
-        </Card>
-      </div>
-      <div className={`col col-context ${cls("context")}`}>
-        <MemberPanel s={s} />
-        <RequestPanel s={s} />
-        <ProviderPanel s={s} />
-        <EvidencePanel s={s} />
-      </div>
-      <div className={`col col-outcome ${cls("outcome")}`}>
-        <div className="span-all"><BookingCard s={s} /></div>
-        {s.tasks.length > 0 && <div className="span-all"><HandoffPanel s={s} canAct={canAct} onChanged={onChanged} /></div>}
-        <SummaryPanel s={s} />
-        {s.tasks.length === 0 && <HandoffPanel s={s} canAct={canAct} onChanged={onChanged} />}
-        {/* Kept near the top: the presenter taps this mid-call, so it must not sit below the fold. */}
-        <div className="span-all"><DemoControls s={s} canAct={canAct} onChanged={onChanged} /></div>
-        <SlotList s={s} />
-        <ActivityTimeline s={s} />
+    <main className={`case ${stale ? "is-stale" : ""}`}>
+      <CaseHeader s={s} />
+      <div className="case-body">
+        <div className={`col col-fill col-call ${tab === "call" ? "active" : ""}`}>
+          <Card className="fill" title="Conversation" icon={<MessageSquare size={15} />} meta={live ? <Chip tone="green"><span className="dot" /> Updating live</Chip> : "Full transcript"} bodyClass="card-body" label="Conversation">
+            <Transcript turns={s.turns} live={live} callId={s.call_id} />
+          </Card>
+        </div>
+        <div className={`col col-side ${tab === "case" ? "active" : ""}`}>
+          {!live && summary}
+          <BookingCard s={s} />
+          {s.tasks.length > 0 && <HandoffPanel s={s} canAct={canAct} onChanged={onChanged} />}
+          {live && summary}
+          <MemberPanel s={s} />
+          <RequestPanel s={s} />
+          <ProviderPanel s={s} />
+          <EvidencePanel s={s} />
+          {s.tasks.length === 0 && <HandoffPanel s={s} canAct={canAct} onChanged={onChanged} />}
+          <SlotList s={s} />
+          <ActivityTimeline s={s} developer={developer} />
+          <DemoControls s={s} canAct={canAct} onChanged={onChanged} />
+        </div>
       </div>
     </main>
   );
@@ -160,77 +151,78 @@ function NotFound({ onBack, hasCalls }: { onBack: () => void; hasCalls: boolean 
   );
 }
 
-function hashId(): string | null {
-  const m = /[#&]call=([^&]+)/.exec(window.location.hash);
-  return m ? decodeURIComponent(m[1]) : null;
+function readDeveloper(): boolean {
+  try {
+    return localStorage.getItem("careline-developer") === "on";
+  } catch {
+    return false;
+  }
 }
 
 export function App() {
+  const theme = useTheme();
+  const { route, go } = useRoute(!isFixture);
   const [stage, setStage] = useState("booked");
   const fixtureStage = useMemo(() => FIXTURE_STAGES.find((f) => f.key === stage) ?? FIXTURE_STAGES[0], [stage]);
-  const [selectedId, setSelectedId] = useState<string | null>(() => (isFixture ? null : hashId()));
   const [tab, setTab] = useState<Tab>("call");
-  const [section, setSection] = useState<Section>("workspace");
-  const [developer, setDeveloper] = useState(() => localStorage.getItem("careline-developer") === "on");
-  const [history, setHistory] = useState<CallListItem[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  useEffect(() => {
-    localStorage.setItem("careline-developer", developer ? "on" : "off");
-    if (!developer && section === "developer") setSection("workspace");
-  }, [developer, section]);
-  // Call history page (read-only list). Opening a call there selects it in the live workspace.
-  useEffect(() => {
-    if (section !== "history" || isFixture) return;
-    let active = true;
-    const load = async () => {
-      try { const items = await getCallHistory(); if (active) { setHistory(items); setHistoryError(""); } }
-      catch { if (active) setHistoryError("Check the backend connection and try again."); }
-      finally { if (active) setHistoryLoading(false); }
-    };
-    setHistoryLoading(true);
-    void load();
-    const id = setInterval(load, 5000);
-    return () => { active = false; clearInterval(id); };
-  }, [section]);
+  const [developer, setDeveloperState] = useState(readDeveloper);
 
-  // Two independent 1 s polls: the call list, and the ONE selected call's full state.
+  const view: View = isFixture ? "conversations" : route.view;
+  const inConv = view === "conversations";
+  const selectedId = isFixture ? null : route.call;
+
+  const setDeveloper = useCallback(
+    (on: boolean) => {
+      try {
+        localStorage.setItem("careline-developer", on ? "on" : "off");
+      } catch {
+        /* preference only */
+      }
+      setDeveloperState(on);
+      if (!on) go({ view: "overview" });
+    },
+    [go],
+  );
+  useEffect(() => {
+    if (!developer && view === "developer") go({ view: "overview" });
+  }, [developer, view, go]);
+
+  // Two independent polls: every call (cheap rows), and the ONE selected call's full state.
   const list = usePoll(getCalls, "calls", 1000, !isFixture);
-  const detail = usePoll((signal) => getCallState(selectedId!, signal), selectedId ? `call:${selectedId}` : null, 1000, !isFixture);
+  const detail = usePoll((signal) => getCallState(selectedId!, signal), inConv && selectedId ? `call:${selectedId}` : null, 1000, !isFixture);
 
   const calls = isFixture ? (fixtureStage.state ? [summaryFromState(fixtureStage.state)] : []) : list.data;
   const effectiveId = isFixture ? (fixtureStage.state?.call_id ?? null) : selectedId;
 
-  const select = useCallback((id: string) => {
-    setSelectedId(id);
-    setTab("call");
-    if (!isFixture) window.history.replaceState(null, "", `#call=${encodeURIComponent(id)}`);
-  }, []);
+  const select = useCallback(
+    (id: string) => {
+      setTab("call");
+      go({ view: "conversations", call: id });
+    },
+    [go],
+  );
 
-  // Pick a call ONCE, only while nothing is selected: the most recent live call, else the most
+  // Pick a call ONCE, only while nothing is selected: the most recent active call, else the most
   // recently finished one. After that new calls never move the selection.
   useEffect(() => {
-    if (isFixture || selectedId || !list.data || list.data.length === 0) return;
+    if (isFixture || !inConv || selectedId || !list.data || list.data.length === 0) return;
     select((list.data.find((c) => c.status === "live") ?? list.data[0]).call_id);
-  }, [selectedId, list.data, select]);
-
-  useEffect(() => {
-    const sync = () => setSelectedId(hashId());
-    window.addEventListener("hashchange", sync);
-    return () => window.removeEventListener("hashchange", sync);
-  }, []);
+  }, [inConv, selectedId, list.data, select]);
 
   const state = isFixture ? fixtureStage.state : detail.data ?? null;
-  const gone = !isFixture && selectedId !== null && detail.data === null;
-  const loadingDetail = !isFixture && selectedId !== null && detail.data === undefined;
-  const lastOk = selectedId ? detail.lastOk : list.lastOk;
+  // The post-call facts (verification, provider, problems, follow-ups) for a finished call.
+  const sumDoc = usePoll((signal) => getCallSummary(state!.call_id, signal), !isFixture && inConv && state?.status === "finalized" ? `summary:${state.call_id}` : null, 2000, true);
+  const gone = !isFixture && inConv && selectedId !== null && detail.data === null;
+  const loadingDetail = !isFixture && inConv && selectedId !== null && detail.data === undefined;
+  const lastOk = inConv && selectedId ? detail.lastOk : list.lastOk;
   const worst = (a: Connection, b: Connection): Connection => (a === "disconnected" || b === "disconnected" ? "disconnected" : a === "stale" || b === "stale" ? "stale" : a);
-  const link: Connection = isFixture ? "connected" : selectedId ? worst(detail.connection, list.connection) : list.connection;
+  const link: Connection = isFixture ? "connected" : inConv && selectedId ? worst(detail.connection, list.connection) : list.connection;
   const down = !isFixture && (link === "stale" || link === "disconnected");
   const refresh = useCallback(() => {
     list.refresh();
     detail.refresh();
-  }, [list.refresh, detail.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
+    sumDoc.refresh();
+  }, [list.refresh, detail.refresh, sumDoc.refresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const error = detail.error ?? list.error;
   const canAct = !isFixture;
   const noCalls = !isFixture && list.data !== undefined && list.data.length === 0 && !selectedId;
@@ -238,68 +230,85 @@ export function App() {
   let body;
   if (!isFixture && link === "loading" && !state && !calls) body = <Skeleton />;
   else if (!isFixture && down && !state && !calls) body = <Unreachable error={error?.message ?? "The backend did not answer."} onRetry={refresh} />;
-  else if (gone) body = <NotFound hasCalls={!!calls?.length} onBack={() => { window.history.replaceState(null, "", window.location.pathname); setSelectedId(null); }} />;
+  else if (gone) body = <NotFound hasCalls={!!calls?.length} onBack={() => select((calls!.find((c) => c.status === "live") ?? calls![0]).call_id)} />;
   else if (noCalls || (!state && !loadingDetail && !effectiveId)) body = <Idle />;
   else if (!state) body = <Skeleton />;
-  else
-    body = (
+  else body = <Case key={state.call_id} s={state} tab={tab} canAct={canAct} onChanged={refresh} stale={down} details={sumDoc.data?.details} developer={developer} />;
+
+  const counts = useMemo(
+    () => ({
+      active: (calls ?? []).filter((c) => c.status === "live").length,
+      attention: (calls ?? []).filter(needsAttention).length,
+      followups: (calls ?? []).reduce((n, c) => n + c.open_tasks, 0),
+    }),
+    [calls],
+  );
+
+  const page =
+    view === "overview" ? (
+      <Overview calls={calls} loading={list.connection === "loading"} onOpen={select} onNavigate={(v) => go({ view: v })} />
+    ) : view === "followups" ? (
+      <FollowUps calls={calls} onOpenCall={select} canAct={canAct} onChanged={refresh} />
+    ) : view === "providers" ? (
+      <Providers />
+    ) : view === "architecture" ? (
+      <Architecture />
+    ) : view === "presentation" ? (
+      <Deck />
+    ) : view === "developer" ? (
+      <Developer state={state} />
+    ) : (
       <>
-        <CallBar s={state} />
-        <Workspace key={state.call_id} s={state} tab={tab} canAct={canAct} onChanged={refresh} stale={down} />
+        {isFixture && (
+          <div className="fixture-bar" role="region" aria-label="Fixture mode">
+            <b>Fixture mode · not a live call</b>
+            <span style={{ color: "var(--ink-300)" }}>Showing a saved example from contracts/examples. Actions are disabled.</span>
+            <div className="stages">
+              {FIXTURE_STAGES.map((f) => (
+                <button key={f.key} aria-pressed={stage === f.key} onClick={() => setStage(f.key)}>{f.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {down && (state || calls) && (
+          <div className="notice error" role="alert">
+            <WifiOff size={15} />
+            <span className="grow">
+              {link === "disconnected" ? "Backend disconnected." : "Connection interrupted."} Showing the last data received{lastOk ? ` at ${shortClock(new Date(lastOk).toISOString())} ET` : ""}. Nothing below is updating, and the selected call has not changed.
+            </span>
+            <button onClick={refresh}>Retry now</button>
+          </div>
+        )}
+
+        <div className="tabs" role="tablist" aria-label="Sections">
+          {(["calls", "call", "case"] as Tab[]).map((t) => (
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+              {t === "calls" ? `Calls${counts.active ? ` · ${counts.active}` : ""}` : t === "call" ? "Transcript" : "Case details"}
+            </button>
+          ))}
+        </div>
+
+        <div className={`conv-shell tab-${tab}`}>
+          <ConversationList calls={calls} selectedId={effectiveId} onSelect={select} loading={!isFixture && list.data === undefined && link === "loading"} fixture={isFixture} stale={down} />
+          <div className="case-pane">{body}</div>
+        </div>
       </>
     );
 
-  const crumb = section === "workspace" ? "Live workspace" : section === "history" ? "Call history" : section === "providers" ? "Providers" : section === "architecture" ? "System design" : section === "presentation" ? "Presentation" : "Developer view";
-  const openCall = (id: string) => { select(id); setSection("workspace"); };
-
   return (
-    <ProductShell section={section} setSection={setSection} developer={developer} setDeveloper={setDeveloper}>
-    <div className="app">
-      <header className="topbar">
-        <span className="crumb">Workspace / {crumb}</span>
-        <span className="topbar-spacer" />
-        <div className="topbar-right">
-          <ConnectionBadge connection={link} lastOk={lastOk} fixture={isFixture} onRetry={refresh} />
-        </div>
-      </header>
-
-      {section === "providers" ? <Providers /> : section === "history" ? <History calls={history} loading={historyLoading} error={historyError} onSelect={openCall} /> : section === "architecture" ? <Architecture /> : section === "presentation" ? <Deck /> : section === "developer" ? <Developer state={state} /> : <>
-      {isFixture && (
-        <div className="fixture-bar" role="region" aria-label="Fixture mode">
-          <b>Fixture mode · not a live call</b>
-          <span style={{ color: "var(--ink-300)" }}>Showing a saved example from contracts/examples. Actions are disabled.</span>
-          <div className="stages">
-            {FIXTURE_STAGES.map((f) => (
-              <button key={f.key} aria-pressed={stage === f.key} onClick={() => setStage(f.key)}>{f.label}</button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {down && (state || calls) && (
-        <div className="notice error" role="alert">
-          <WifiOff size={15} />
-          <span className="grow">
-            {link === "disconnected" ? "Backend disconnected." : "Connection interrupted."} Showing the last data received{lastOk ? ` at ${shortClock(new Date(lastOk).toISOString())} ET` : ""}. Nothing below is updating, and the selected call has not changed.
-          </span>
-          <button onClick={refresh}>Retry now</button>
-        </div>
-      )}
-
-      <div className="tabs" role="tablist" aria-label="Sections">
-        {(["calls", "call", "context", "outcome"] as Tab[]).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
-            {t === "calls" ? `Calls${calls?.filter((c) => c.status === "live").length ? ` · ${calls.filter((c) => c.status === "live").length}` : ""}` : t === "call" ? "Call" : t === "context" ? "Context" : "Outcome"}
-          </button>
-        ))}
-      </div>
-
-      <div className={`shell tab-${tab}`}>
-        <Conversations calls={calls} selectedId={effectiveId} onSelect={select} loading={!isFixture && list.data === undefined && link === "loading"} fixture={isFixture} stale={down} />
-        <div className="shell-main">{body}</div>
-      </div>
-      </>}
-    </div>
-    </ProductShell>
+    <AppShell
+      view={view}
+      onNavigate={(v) => go({ view: v })}
+      counts={counts}
+      theme={theme.mode}
+      onTheme={theme.setMode}
+      developer={developer}
+      onDeveloper={setDeveloper}
+      title={TITLES[view]}
+      right={view === "providers" ? undefined : <ConnectionBadge connection={link} lastOk={lastOk} fixture={isFixture} onRetry={refresh} />}
+    >
+      {page}
+    </AppShell>
   );
 }

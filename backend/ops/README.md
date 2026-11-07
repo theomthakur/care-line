@@ -7,7 +7,8 @@ Mount in the app: `from backend import ops; ops.install(app)` (adds the router a
 | Route | Access | Notes |
 | --- | --- | --- |
 | `GET /calls/latest` | console | `{state, speak}`; `state` is null before any call; verification answers masked |
-| `GET /calls?recent=20` | console | `{calls: CallSummary[]}`: every live call (newest first), then the most recent finished calls (0-100). One snapshot, no secrets |
+| `GET /calls?recent=20` | console | `{calls: CallSummary[]}`: every live call (newest first), then the most recent finished calls (0-100). One snapshot, no secrets, **no transcript text**. Also closes calls that went quiet without being finalized (see below) |
+| `GET /calls/{id}/summary` | console | `{status, summary, details}`: the stored outcome plus facts re-read from saved rows (verification, provider, booking, problems, follow-ups, next action). Kept off `/state` so that stays exactly the contract's `State` |
 | `GET /calls/{id}/state` | console | the same `State` as `/calls/latest`, for one call; unknown id is 404 `CALL_NOT_FOUND`, never "the latest" |
 | `GET /tasks?status=`, `POST /tasks/{id}/complete` | console | complete is idempotent |
 | `POST /admin/take-slot` | console | blocks one open slot as a simulated caller; does not touch drafts |
@@ -21,3 +22,9 @@ Dev only: `dev_seed.py` builds a database from the schema with synthetic fixture
 ```bash
 uv run pytest tests/ops -q
 ```
+
+## Summaries and calls that never hung up cleanly
+
+The voice agent finalizes a call from its shutdown hook. If that hook never runs (worker killed, line dropped), the call used to stay `live` forever with no summary. `GET /calls` now closes any live call with no turn or event for `CARELINE_ABANDON_AFTER_S` seconds (default 300, the same window core uses for "stale") by running the normal finalize on its saved rows and marking the stored summary `ended_reason: "dropped"`. A call whose confirmation is still being committed is left alone. Nothing is guessed: a booked call reads booked only because an appointment row exists.
+
+Every console response carries `Cache-Control: no-store`.
