@@ -168,6 +168,27 @@ describe("A/B. sidebar navigation", () => {
   });
 });
 
+describe("settings do not move the operator", () => {
+  it("turning the developer view off keeps the open conversation and page", async () => {
+    be.put(withId(stage("booked"), "call_A"));
+    window.location.hash = "#view=conversations&call=call_A";
+    await open();
+    await act(async () => screen.getByRole("button", { name: "Settings and appearance" }).click());
+    const box = screen.getByRole("checkbox", { name: "Show developer view" });
+    await act(async () => box.click()); // on
+    await act(async () => box.click()); // off again
+    expect(window.location.hash).toBe("#view=conversations&call=call_A");
+    expect(header().getByText("MG-APT-4821")).toBeInTheDocument();
+  });
+
+  it("falls back to Overview only when the developer view itself is switched off", async () => {
+    window.location.hash = "#view=developer";
+    localStorage.setItem("careline-developer", "off");
+    await open();
+    expect(window.location.hash).toBe("#view=overview");
+  });
+});
+
 describe("C. appearance", () => {
   const openSettings = async () => {
     await act(async () => screen.getByRole("button", { name: "Settings and appearance" }).click());

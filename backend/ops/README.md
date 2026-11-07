@@ -7,7 +7,7 @@ Mount in the app: `from backend import ops; ops.install(app)` (adds the router a
 | Route | Access | Notes |
 | --- | --- | --- |
 | `GET /calls/latest` | console | `{state, speak}`; `state` is null before any call; verification answers masked |
-| `GET /calls?recent=20` | console | `{calls: CallSummary[]}`: every live call (newest first), then the most recent finished calls (0-100). One snapshot, no secrets, **no transcript text**. Also closes calls that went quiet without being finalized (see below) |
+| `GET /calls?recent=20` | console | `{calls: CallSummary[]}`: every live call (newest first), then the most recent finished calls (0-100). One snapshot, no secrets, **no transcript text**. Read-only |
 | `GET /calls/{id}/summary` | console | `{status, summary, details}`: the stored outcome plus facts re-read from saved rows (verification, provider, booking, problems, follow-ups, next action). Kept off `/state` so that stays exactly the contract's `State` |
 | `GET /calls/{id}/state` | console | the same `State` as `/calls/latest`, for one call; unknown id is 404 `CALL_NOT_FOUND`, never "the latest" |
 | `GET /tasks?status=`, `POST /tasks/{id}/complete` | console | complete is idempotent |
@@ -25,6 +25,10 @@ uv run pytest tests/ops -q
 
 ## Summaries and calls that never hung up cleanly
 
-The voice agent finalizes a call from its shutdown hook. If that hook never runs (worker killed, line dropped), the call used to stay `live` forever with no summary. `GET /calls` now closes any live call with no turn or event for `CARELINE_ABANDON_AFTER_S` seconds (default 300, the same window core uses for "stale") by running the normal finalize on its saved rows and marking the stored summary `ended_reason: "dropped"`. A call whose confirmation is still being committed is left alone. Nothing is guessed: a booked call reads booked only because an appointment row exists.
+The voice agent finalizes a call from its shutdown hook. If that hook never runs (worker killed, line dropped), the call would stay `live` forever with no summary. `backend/ops/sweeper.py` closes any live call with no turn or event for `CARELINE_ABANDON_AFTER_S` seconds (default 300, minimum 60, the same window core uses for "stale") by running the normal finalize on its saved rows and marking the stored summary `ended_reason: "dropped"`.
+
+- **GET routes never write.** The sweep is a background task, started once on the first request to an ops route (`ensure_sweeper`, interval `CARELINE_SWEEP_INTERVAL_S`, default 15, 0 disables). A host with a lifespan can run `run_sweeper(app)` itself instead.
+- **An active call is not closed.** Any caller turn, agent turn or event resets the window. The close is conditional and atomic: inside one write transaction the call is re-checked (still live, no activity since the cutoff) and nothing is written otherwise, so a turn that lands first always wins. The task joins core's `write_ingress` barrier when the host has one, skips a call whose confirm is pending (`pending_commit`), and never touches a call that is already finalized.
+- Nothing is guessed: a booked call reads booked only because an appointment row exists.
 
 Every console response carries `Cache-Control: no-store`.

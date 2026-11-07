@@ -23,19 +23,22 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
-def get_conn(request: Request) -> Iterator[sqlite3.Connection]:
-    """FastAPI dependency. The host app may set ``app.state.db_path`` (or ``app.state.get_conn``)."""
-    state = request.app.state
+def open_conn(state) -> sqlite3.Connection:
+    """A connection for the host app's database (``app.state`` as set by core or the dev app)."""
     shared = getattr(state, "db", None)  # core's Database
     factory = getattr(state, "get_conn", None)
     if shared is not None and hasattr(shared, "path"):
         # Same file, our own connection: handlers run across threads, and core's
         # POST ingress middleware already serialises every write request.
-        conn = connect(shared.path)
-    elif factory:
-        conn = factory()
-    else:
-        conn = connect(getattr(state, "db_path", DEFAULT_DB))
+        return connect(shared.path)
+    if factory:
+        return factory()
+    return connect(getattr(state, "db_path", DEFAULT_DB))
+
+
+def get_conn(request: Request) -> Iterator[sqlite3.Connection]:
+    """FastAPI dependency. The host app may set ``app.state.db_path`` (or ``app.state.get_conn``)."""
+    conn = open_conn(request.app.state)
     try:
         yield conn
     finally:

@@ -16,6 +16,7 @@ from .calls import DEFAULT_RECENT, MAX_RECENT, list_calls
 from .db import get_conn
 from .errors import OpsError
 from .state import build_state
+from .sweeper import ensure_sweeper
 from .tasks import CATEGORIES, complete_task, create_task, dedupe_key_for, list_tasks
 
 
@@ -39,7 +40,12 @@ class OpsRoute(APIRoute):
         return guarded
 
 
-router = APIRouter(route_class=OpsRoute)
+async def _start_sweeper(request: Request) -> None:
+    """Schedules the background sweeper once per app. Writes nothing and touches no handler."""
+    ensure_sweeper(request.app)
+
+
+router = APIRouter(route_class=OpsRoute, dependencies=[Depends(_start_sweeper)])
 
 
 def install(app: FastAPI) -> None:
@@ -176,9 +182,8 @@ def calls_list(
 ):
     """All live calls plus the most recent finished ones, for the console's call list.
 
-    Calls that went quiet without the voice agent finalizing them are closed first, so every
-    ended call has a summary built from its saved rows."""
-    summary.close_abandoned(conn)
+    Read-only. Calls that went quiet without being finalized are closed by the background
+    sweeper (``sweeper.py``), not here."""
     return {"calls": list_calls(conn, recent), "speak": ""}
 
 

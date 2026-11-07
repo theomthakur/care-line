@@ -9,7 +9,9 @@ from datetime import timedelta
 
 import pytest
 
+from backend.ops import clock as ops_clock
 from backend.ops import summary as ops_summary
+from backend.ops import sweeper
 from tests.ops.test_concurrent_calls import KEY, Caller, clk, web  # noqa: F401
 
 
@@ -94,6 +96,24 @@ def test_unknown_call_summary_is_404(web):
     assert r.status_code == 404 and r.json()["error"] == "CALL_NOT_FOUND"
 
 
+def dump(web):
+    """Every table the console reads, as one comparable snapshot."""
+    import sqlite3
+
+    conn = sqlite3.connect(str(web.app.state.db.path))
+    try:
+        return {
+            t: conn.execute(f"SELECT * FROM {t} ORDER BY 1").fetchall()
+            for t in ("calls", "turns", "events", "tasks", "appointments", "drafts")
+        }
+    finally:
+        conn.close()
+
+
+def sweep(web):
+    return sweeper.sweep_once(web.app)
+
+
 def test_abandoned_call_is_closed_with_a_summary_from_saved_rows(web, clk):
     booked, conf = booked_call(web, clk, "dropped-booked")  # hung up, never finalized
     quiet = Caller(web, clk, "dropped-quiet")
@@ -102,36 +122,156 @@ def test_abandoned_call_is_closed_with_a_summary_from_saved_rows(web, clk):
     clk.advance(ops_summary.ABANDON_AFTER.total_seconds() - 30)
     live.turn("user", "I am still on the line")
     clk.advance(60)  # the first two are now past the window; `live` is not
+    assert set(sweep(web)) == {booked.id, quiet.id}
     calls = {c["call_id"]: c for c in web.get("/calls").json()["calls"]}
     assert calls[booked.id]["status"] == "finalized"
     assert calls[booked.id]["outcome"] == "booked"
     assert calls[booked.id]["confirmation"] == conf
-    assert calls[quiet.id]["status"] == "finalized"
     assert calls[quiet.id]["outcome"] == "not_completed"
     assert calls[live.id]["status"] == "live"
     stored = web.get(f"/calls/{quiet.id}/state").json()["state"]["summary"]
     assert stored["ended_reason"] == "dropped"
-    # a real hang-up that already finalized is not rewritten
-    again = web.get("/calls").json()["calls"]
-    assert len([c for c in again if c["status"] == "finalized"]) == 2
+    assert sweep(web) == []  # idempotent: nothing is closed or rewritten twice
+
+
+def test_get_routes_never_write_even_with_an_abandoned_call_present(web, clk):
+    c, _ = booked_call(web, clk, "quiet-line")
+    clk.advance(ops_summary.ABANDON_AFTER.total_seconds() * 3)
+    before = dump(web)
+    for path in (
+        "/calls",
+        "/calls/latest",
+        f"/calls/{c.id}/state",
+        f"/calls/{c.id}/summary",
+        "/tasks",
+        "/providers/directory",
+        "/calls/history",
+    ):
+        assert web.get(path).status_code == 200, path
+    assert dump(web) == before  # a console that only reads never changes a call
+    assert web.get("/calls").json()["calls"][0]["status"] == "live"
+    assert sweep(web) == [c.id]  # only the sweeper closes it
 
 
 def test_recent_activity_keeps_a_call_open(web, clk):
     c = Caller(web, clk, "active")
     c.turn("user", "Hello")
     clk.advance(ops_summary.ABANDON_AFTER.total_seconds() - 5)
-    assert web.get("/calls").json()["calls"][0]["status"] == "live"
+    assert sweep(web) == []
     clk.advance(ops_summary.ABANDON_AFTER.total_seconds() / 2)
     c.turn("user", "Still here")  # activity resets the window
+    assert sweep(web) == []
+    c.turn("assistant", "Anything else?")  # an agent turn counts as activity too
+    clk.advance(ops_summary.ABANDON_AFTER.total_seconds() - 5)
+    assert sweep(web) == []
     assert web.get("/calls").json()["calls"][0]["status"] == "live"
 
 
-def test_confirming_call_is_not_closed_while_commit_pending(web, clk, monkeypatch):
+def test_call_with_a_draft_or_booking_in_progress_is_not_closed_while_recent(web, clk):
+    c = Caller(web, clk, "mid-booking")
+    c.turn("user", "I need a doctor near 10023.")
+    c.verify("4417", 4)
+    c.search()
+    slots = c.choose("P2")
+    c.read_back(slots[0]["slot_id"])  # armed, waiting for the caller's yes
+    clk.advance(ops_summary.ABANDON_AFTER.total_seconds() - 10)
+    assert sweep(web) == []
+    assert web.get(f"/calls/{c.id}/state").json()["state"]["status"] == "live"
+
+
+def test_close_is_conditional_a_turn_that_lands_first_wins(web, clk):
+    """The sweep picked this call as idle, then the caller spoke. The re-check inside the write
+    transaction must keep it live."""
+    import sqlite3
+
+    c = Caller(web, clk, "race")
+    c.turn("user", "Hello")
+    clk.advance(ops_summary.ABANDON_AFTER.total_seconds() + 5)
+    cutoff = ops_clock.utc_str(ops_clock.now() - ops_summary.ABANDON_AFTER)
+    c.turn("user", "Sorry, I am here")  # lands after the candidate was chosen
+    conn = sqlite3.connect(str(web.app.state.db.path), isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    try:
+        assert (
+            ops_summary.finalize_call(conn, c.id, "dropped", idle_before=cutoff) is None
+        )
+        assert (
+            conn.execute("SELECT status FROM calls WHERE id = ?", (c.id,)).fetchone()[0]
+            == "live"
+        )
+        assert not conn.execute(
+            "SELECT 1 FROM events WHERE call_id = ? AND name = 'finalized'", (c.id,)
+        ).fetchone()
+    finally:
+        conn.close()
+
+
+def test_already_finalized_call_is_not_rewritten_by_the_sweep(web, clk):
+    c, _ = booked_call(web, clk, "normal-hangup")
+    assert c.post("finalize").status_code == 200  # the voice agent did its job
+    before = dump(web)
+    clk.advance(ops_summary.ABANDON_AFTER.total_seconds() * 4)
+    assert sweep(web) == []
+    assert dump(web) == before
+    assert (
+        "ended_reason" not in web.get(f"/calls/{c.id}/state").json()["state"]["summary"]
+    )
+
+
+def test_a_commit_that_is_still_pending_is_not_closed(web, clk, monkeypatch):
     c = Caller(web, clk, "pending")
     c.turn("user", "Hello")
     monkeypatch.setattr(ops_summary, "pending_commit", lambda call_id: True)
     clk.advance(timedelta(minutes=30).total_seconds())
+    assert sweep(web) == []
     assert web.get("/calls").json()["calls"][0]["status"] == "live"
+
+
+def test_window_has_a_safety_floor():
+    assert (
+        ops_summary.ABANDON_AFTER >= ops_summary.ABANDON_FLOOR >= timedelta(seconds=60)
+    )
+
+
+def test_background_sweeper_runs_inside_the_app_and_respects_the_write_barrier(
+    tmp_path, clk, monkeypatch
+):
+    """End to end: the first console request starts the task; it closes the dropped call on its
+    own, through the same lock core uses for writes, while GETs stay read-only."""
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from backend.core.db import Database
+    from backend.core.seed import seed
+    from backend.main import create_app
+
+    monkeypatch.setattr(sweeper, "SWEEP_INTERVAL_S", 0.05)
+    db = Database(tmp_path / "bg.db", clock=clk)
+    db.initialize()
+    seed(db, demo_date=clk().date())
+    with TestClient(create_app(database=db, agent_key="mc-key")) as web:
+        gone = Caller(web, clk, "gone")
+        gone.turn("user", "Hi there")
+        here = Caller(web, clk, "here")
+        clk.advance(ops_summary.ABANDON_AFTER.total_seconds() - 30)
+        here.turn("user", "Still talking")
+        clk.advance(60)
+        assert (
+            web.get("/calls").status_code == 200
+        )  # starts the sweeper; writes nothing
+        assert isinstance(web.app.state.ops_sweeper, __import__("asyncio").Task)
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            states = {
+                c["call_id"]: c["status"] for c in web.get("/calls").json()["calls"]
+            }
+            if states[gone.id] == "finalized":
+                break
+            time.sleep(0.05)
+        assert states[gone.id] == "finalized"
+        assert states[here.id] == "live"  # recent activity kept it open
+        assert web.app.state.write_ingress.locked() is False  # barrier released
 
 
 def test_list_rows_carry_no_transcript_and_full_member_digits_stay_hidden(web, clk):

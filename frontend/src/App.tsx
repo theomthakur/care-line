@@ -179,9 +179,8 @@ export function App() {
         /* preference only */
       }
       setDeveloperState(on);
-      if (!on) go({ view: "overview" });
     },
-    [go],
+    [],
   );
   useEffect(() => {
     if (!developer && view === "developer") go({ view: "overview" });

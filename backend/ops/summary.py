@@ -24,7 +24,15 @@ PENDING_WAIT_S = 3.0
 # (worker killed, line dropped, shutdown hook never ran). Same 5 minutes core uses for
 # "stale" in verification.py. Nothing about such a call is guessed: its summary is built
 # from the rows that were saved.
-ABANDON_AFTER = timedelta(seconds=int(os.getenv("CARELINE_ABANDON_AFTER_S", "300")))
+ABANDON_FLOOR = timedelta(seconds=60)
+ABANDON_AFTER = max(
+    ABANDON_FLOOR, timedelta(seconds=int(os.getenv("CARELINE_ABANDON_AFTER_S", "300")))
+)
+
+# Newest sign of life for a call: its creation, any turn (caller or agent), any event.
+_ACTIVITY_SQL = """MAX(c.created_at,
+    COALESCE((SELECT MAX(received_at) FROM turns t WHERE t.call_id = c.id), ''),
+    COALESCE((SELECT MAX(created_at) FROM events e WHERE e.call_id = c.id), ''))"""
 
 
 def _reason(conn: sqlite3.Connection, call: sqlite3.Row) -> str:
@@ -95,19 +103,36 @@ def build_summary(
 
 
 def finalize_call(
-    conn: sqlite3.Connection, call_id: str, ended_reason: str | None = None
-) -> dict:
+    conn: sqlite3.Connection,
+    call_id: str,
+    ended_reason: str | None = None,
+    idle_before: str | None = None,
+) -> dict | None:
     """Mark the call finalized and store its summary. Safe to repeat (refreshes from rows).
 
     ``ended_reason`` is ``"dropped"`` when the backend closed a call the voice agent never
-    finalized; a normal hang-up leaves it out."""
+    finalized; a normal hang-up leaves it out.
+
+    ``idle_before`` (a UTC timestamp) makes this a conditional close: inside the write
+    transaction the call is re-checked, and nothing is written (returns ``None``) unless it is
+    still live and has had no activity since that time. A turn that lands after the caller
+    chose a candidate therefore always wins over the sweep."""
     if not conn.execute("SELECT 1 FROM calls WHERE id = ?", (call_id,)).fetchone():
         raise OpsError("CALL_NOT_FOUND")
-    deadline = time.monotonic() + PENDING_WAIT_S
-    while pending_commit(call_id) and time.monotonic() < deadline:
-        time.sleep(0.05)
-    unresolved = pending_commit(call_id)
+    unresolved = False
+    if idle_before is None:
+        deadline = time.monotonic() + PENDING_WAIT_S
+        while pending_commit(call_id) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        unresolved = pending_commit(call_id)
     with immediate(conn):
+        if idle_before is not None:
+            row = conn.execute(
+                f"SELECT c.status, {_ACTIVITY_SQL} AS activity FROM calls c WHERE c.id = ?",
+                (call_id,),
+            ).fetchone()
+            if row["status"] != "live" or row["activity"] >= idle_before:
+                return None
         summary = build_summary(conn, call_id, commit_unresolved=unresolved)
         if ended_reason:
             summary["ended_reason"] = ended_reason
@@ -137,24 +162,25 @@ def close_abandoned(
 ) -> list[str]:
     """Finalize live calls that went quiet without being finalized, so they get a summary.
 
-    Idempotent and cheap (one indexed-ish SELECT). A call whose confirmation is still being
-    committed is left alone until the next pass."""
-    cutoff = clock.utc_str(
-        clock.now() - (after if after is not None else ABANDON_AFTER)
-    )
+    This WRITES. It runs from the background sweeper (``sweeper.py``) and never from a GET
+    handler. Each close is conditional and atomic (see ``finalize_call(idle_before=...)``), so a
+    call that shows any activity, including an agent turn or a confirm that is still being
+    committed, is never closed. Returns the ids actually closed."""
+    window = after if after is not None else ABANDON_AFTER
+    cutoff = clock.utc_str(clock.now() - window)
     rows = conn.execute(
-        """SELECT c.id FROM calls c WHERE c.status = 'live' AND
-           MAX(c.created_at,
-               COALESCE((SELECT MAX(received_at) FROM turns t WHERE t.call_id = c.id), ''),
-               COALESCE((SELECT MAX(created_at) FROM events e WHERE e.call_id = c.id), '')) < ?""",
+        f"SELECT c.id FROM calls c WHERE c.status = 'live' AND {_ACTIVITY_SQL} < ?",
         (cutoff,),
     ).fetchall()
     closed = []
     for row in rows:
         if pending_commit(row["id"]):
             continue
-        finalize_call(conn, row["id"], ended_reason="dropped")
-        closed.append(row["id"])
+        if (
+            finalize_call(conn, row["id"], ended_reason="dropped", idle_before=cutoff)
+            is not None
+        ):
+            closed.append(row["id"])
     return closed
 
 
