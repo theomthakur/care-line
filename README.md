@@ -2,6 +2,8 @@
 
 CareLine is a voice-assisted appointment demo. A caller can verify their identity, find a provider, hear available times and confirm a booking. The operator workspace shows conversations, follow-ups and call summaries.
 
+**[Open the hosted UI preview](https://careline-member-guide.vercel.app/)**
+
 **Synthetic demo:** use only the included fictional data. This project is not a production healthcare system or a claim of HIPAA compliance.
 
 ## How it works
