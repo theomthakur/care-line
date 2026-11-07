@@ -110,7 +110,7 @@ def test_access_precedes_call_lookup_and_validation(client):
     )
     assert response.status_code == 401 and response.json()["error"] == "UNAUTHORIZED"
     response = client.post("/calls/missing/verify", json={})
-    assert response.status_code == 404 and response.json()["error"] == "CALL_NOT_FOUND"
+    assert response.status_code == 403 and response.json()["error"] == "FORBIDDEN"
     call_id = new_call(client)
     response = client.post(
         f"/calls/{call_id}/appointment/confirm", json={"confirmed": True}
@@ -286,7 +286,7 @@ def test_restart_preserves_booking_and_replay(client, db, clock):
         response = other.post(
             f"/calls/{call_id}/appointment/confirm",
             json={"token": token},
-            headers={"X-Agent-Key": "test"},
+            headers={"X-Agent-Key": "test", "X-Call-Key": client.headers["X-Call-Key"]},
         )
         assert response.status_code == 200 and response.json() == booked
 
@@ -369,7 +369,10 @@ def test_unexpected_database_failure_returns_no_internal_details(client, db, clo
         response = errors_client.post(
             f"/calls/{call_id}/appointment/confirm",
             json={"token": token},
-            headers={"X-Agent-Key": "core-test-key"},
+            headers={
+                "X-Agent-Key": "core-test-key",
+                "X-Call-Key": client.headers["X-Call-Key"],
+            },
         )
     assert response.status_code == 500 and response.json()["error"] == "INTERNAL_ERROR"
     assert set(response.json()) == {"error", "speak"} and token not in response.text

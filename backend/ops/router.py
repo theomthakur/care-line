@@ -3,13 +3,16 @@
 
 from __future__ import annotations
 
-import hmac
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, Header, Query, Request, Response
+from fastapi import APIRouter, Depends, FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.routing import APIRoute
+
+from backend.core.common import get_call
+from backend.core.errors import DomainError
+from backend.security import Access, access_context
 
 from . import admin, summary
 from .calls import DEFAULT_RECENT, MAX_RECENT, list_calls
@@ -28,13 +31,37 @@ class OpsRoute(APIRoute):
 
         async def guarded(request: Request) -> Response:
             try:
-                response = await handler(request)
+                response = await authorized(request)
+            except DomainError as exc:
+                response = JSONResponse(exc.body, status_code=exc.status)
             except OpsError as exc:
                 response = JSONResponse(exc.detail, status_code=exc.status_code)
             # Case data (names, transcripts, bookings) must never sit in a browser or proxy cache.
             response.headers["Cache-Control"] = "no-store, max-age=0"
             response.headers["Pragma"] = "no-cache"
             return response
+
+        async def authorized(request):
+            agent_route = request.url.path.rsplit("/", 1)[-1] in {
+                "followup",
+                "finalize",
+            }
+            roles = {"agent"} if agent_route else {"operator"}
+            if request.url.path.startswith("/admin/"):
+                roles = {"admin"}
+                if request.app.state.security.environment != "synthetic":
+                    raise DomainError("FORBIDDEN")
+            principal = request.app.state.auth.authenticate(request, roles)
+            context = access_context.set(
+                Access(principal, request.headers.get("x-call-key", ""))
+            )
+            try:
+                if agent_route:
+                    with request.app.state.db.snapshot() as conn:
+                        get_call(conn, request.path_params["call_id"], live=False)
+                return await handler(request)
+            finally:
+                access_context.reset(context)
 
         return guarded
 
@@ -58,19 +85,6 @@ def install(app: FastAPI) -> None:
             status_code=422,
         ),
     )
-
-
-def require_agent_key(
-    request: Request, x_agent_key: str | None = Header(default=None)
-) -> None:
-    """The host's explicit agent key is authoritative; absent configuration fails closed."""
-    expected = getattr(request.app.state, "agent_key", "")
-    if (
-        not expected
-        or not x_agent_key
-        or not hmac.compare_digest(x_agent_key, expected)
-    ):
-        raise OpsError("UNAUTHORIZED")
 
 
 async def _body(request: Request, allowed: set[str]) -> dict[str, Any]:
@@ -245,6 +259,7 @@ async def admin_reset(request: Request, conn: sqlite3.Connection = Depends(get_c
 
 
 def _call(conn: sqlite3.Connection, call_id: str) -> sqlite3.Row:
+    get_call(conn, call_id, live=False)
     row = conn.execute(
         "SELECT id, status FROM calls WHERE id = ?", (call_id,)
     ).fetchone()
@@ -253,7 +268,7 @@ def _call(conn: sqlite3.Connection, call_id: str) -> sqlite3.Row:
     return row
 
 
-@router.post("/calls/{call_id}/followup", dependencies=[Depends(require_agent_key)])
+@router.post("/calls/{call_id}/followup")
 async def calls_followup(
     call_id: str, request: Request, conn: sqlite3.Connection = Depends(get_conn)
 ):
@@ -268,6 +283,10 @@ async def calls_followup(
         raise OpsError("INVALID_REQUEST")
     if _call(conn, call_id)["status"] == "finalized":
         raise OpsError("CALL_CLOSED")
+    if request.app.state.security.environment == "production":
+        call = get_call(conn, call_id, live=False)
+        if call["verification_status"] != "verified":
+            detail = "Caller requests assistance before identity verification."
     task, created = create_task(
         conn, call_id, category, detail.strip(), dedupe_key_for(category, detail)
     )
@@ -279,7 +298,7 @@ async def calls_followup(
     )
 
 
-@router.post("/calls/{call_id}/finalize", dependencies=[Depends(require_agent_key)])
+@router.post("/calls/{call_id}/finalize")
 async def calls_finalize(
     call_id: str, request: Request, conn: sqlite3.Connection = Depends(get_conn)
 ):

@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -67,12 +68,35 @@ def slot_id(provider: str, local: datetime) -> str:
 
 
 def init_db(path: str | Path, now: datetime | None = None) -> sqlite3.Connection:
+    if os.getenv("MEMBERGUIDE_ENV", "synthetic") != "synthetic":
+        raise ValueError("Development fixtures are forbidden in production")
     now = now or clock.now()
     p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if p.parent.stat().st_mode & 0o077:
+        raise ValueError("Development database directory must be owner-only")
     if p.exists():
+        previous = connect(p)
+        try:
+            if previous.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='deployment_scope'"
+            ).fetchone():
+                scope = previous.execute(
+                    "SELECT environment FROM deployment_scope"
+                ).fetchone()
+                if scope and scope["environment"] != "synthetic":
+                    raise ValueError("Cannot overwrite a production database")
+        finally:
+            previous.close()
         p.unlink()
+    fd = os.open(p, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    os.close(fd)
     conn = connect(p)
     conn.executescript(SCHEMA.read_text())
+    conn.executescript(
+        (SCHEMA.parent.parent / "backend" / "security_schema.sql").read_text()
+    )
+    conn.execute("INSERT INTO deployment_scope VALUES (1,'synthetic','synthetic')")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute(
         "INSERT INTO plans(id,name,network,specialist_referral_required) "
@@ -182,6 +206,8 @@ def build_stage(
     if with_tx:
         conn.execute("BEGIN IMMEDIATE")
     conn.execute("UPDATE calls SET current_draft_id = NULL")
+    for table in ("identity_reviews", "call_access", "legal_holds"):
+        conn.execute(f"DELETE FROM {table}")
     for t in ("tasks", "events", "appointments", "drafts", "turns", "calls"):
         conn.execute(f"DELETE FROM {t}")
 

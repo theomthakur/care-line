@@ -1,0 +1,11 @@
+[Unit]
+Description=MemberGuide hourly retention and backup schedule
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=60
+Unit=memberguide-maintenance.service
+
+[Install]
+WantedBy=timers.target

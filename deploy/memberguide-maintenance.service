@@ -1,0 +1,20 @@
+[Unit]
+Description=MemberGuide approved retention and encrypted backup
+RequiresMountsFor=/srv/memberguide
+ConditionPathIsMountPoint=/srv/memberguide
+
+[Service]
+Type=oneshot
+User=memberguide
+Group=memberguide
+WorkingDirectory=/opt/memberguide
+EnvironmentFile=/etc/memberguide/runtime.env
+UMask=0077
+ExecStart=/opt/memberguide/.venv/bin/python -m backend.lifecycle backup --policy /etc/memberguide/retention.json --archive /srv/memberguide/backups --keys /etc/memberguide/backup-keys.json --ledger /srv/memberguide/erasure-ledger/current.enc
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/memberguide/database /srv/memberguide/backups /srv/memberguide/erasure-ledger
+ReadOnlyPaths=/etc/memberguide
+LimitCORE=0

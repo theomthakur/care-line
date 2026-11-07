@@ -15,7 +15,7 @@ from backend.core.seed import seed
 from backend.main import create_app
 from backend.ops import clock as ops_clock
 
-KEY = {"X-Agent-Key": "mc-key"}
+KEY = {"Authorization": "Bearer mc-key"}
 
 
 class Clk:
@@ -41,7 +41,20 @@ def web(tmp_path, clk):
     db = Database(tmp_path / "multi.db", clock=clk)
     db.initialize()
     seed(db, demo_date=clk().date())
-    with TestClient(create_app(database=db, agent_key="mc-key")) as c:
+    app = create_app(database=db, agent_key="mc-key")
+    from tests.security_helpers import TOKENS, configure_roles
+
+    configure_roles(app, tmp_path / "credentials.json", "mc-key")
+
+    class AuthorizedClient(TestClient):
+        def request(self, method, url, **kwargs):
+            headers = dict(kwargs.pop("headers", {}) or {})
+            if not any(k.lower() == "authorization" for k in headers):
+                role = "admin" if str(url).startswith("/admin/") else "operator"
+                headers["Authorization"] = "Bearer " + TOKENS[role]
+            return super().request(method, url, headers=headers, **kwargs)
+
+    with AuthorizedClient(app) as c:
         yield c
 
 
@@ -50,7 +63,11 @@ class Caller:
 
     def __init__(self, web, clk, room):
         self.web, self.clk, self.room, self.n = web, clk, room, 0
-        r = web.post("/calls", json={"room": room}, headers=KEY)
+        self.headers = {
+            **KEY,
+            "X-Call-Key": f"test-call-capability-{room}-at-least-32-characters",
+        }
+        r = web.post("/calls", json={"room": room}, headers=self.headers)
         assert r.status_code == 201, r.text
         self.id = r.json()["call_id"]
         self.token = None
@@ -64,13 +81,15 @@ class Caller:
                 "role": role,
                 "text": text,
             },
-            headers=KEY,
+            headers=self.headers,
         )
         assert r.status_code in (200, 201), r.text
         return r
 
     def post(self, path, body=None):
-        return self.web.post(f"/calls/{self.id}/{path}", json=body or {}, headers=KEY)
+        return self.web.post(
+            f"/calls/{self.id}/{path}", json=body or {}, headers=self.headers
+        )
 
     def verify(self, digits, month):
         r = self.post("verify", {"member_digits": digits, "birth_month": month})

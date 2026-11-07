@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import re
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
@@ -138,8 +139,10 @@ class Flow:
     # ---- tools ----
     async def verify(self, digits: str, birth_month: str) -> str:
         assert self.call_id
-        digits = spoken_digits(digits)
-        if len(digits) != 4:
+        production = os.getenv("MEMBERGUIDE_ENV", "synthetic") == "production"
+        digits = "" if production else spoken_digits(digits)
+        birth_month = "" if production else birth_month
+        if not production and len(digits) != 4:
             # A mumbled number is not a wrong number: don't spend one of three tries.
             return (
                 "UNCLEAR. You did not get exactly four digits. Do not guess and do not "

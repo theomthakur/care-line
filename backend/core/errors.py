@@ -1,6 +1,10 @@
 """Wire errors shared by the core and the operations router."""
 
 ERRORS = {
+    "HUMAN_VERIFICATION_REQUIRED": (
+        403,
+        "A member services representative needs to verify your identity through our approved process. I've saved a request for help. Please don't share verification codes or identity documents here.",
+    ),
     "VERIFICATION_REQUIRED": (403, "Please verify your member details first."),
     "VERIFICATION_FAILED": (
         403,

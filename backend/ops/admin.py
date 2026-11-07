@@ -51,6 +51,11 @@ def reset_demo(conn: sqlite3.Connection) -> dict:
         # references must be valid again before this transaction can commit.
         conn.execute("PRAGMA defer_foreign_keys = ON")
         conn.execute("UPDATE calls SET current_draft_id = NULL")
+        for table in ("identity_reviews", "call_access", "legal_holds"):
+            if conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone():
+                conn.execute(f"DELETE FROM {table}")
         for table in (
             "tasks",
             "events",

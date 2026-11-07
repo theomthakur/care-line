@@ -1,9 +1,9 @@
 """Om's agreed HTTP routes. Credentials and tokens stay in adapter code."""
 
-import secrets
-
 from fastapi import APIRouter, Request, Response
 from fastapi.routing import APIRoute
+
+from backend.security import Access, access_context
 
 from . import availability, booking, calls, models, providers, verification
 from .common import get_call
@@ -15,23 +15,26 @@ class AgentRoute(APIRoute):
         handler = super().get_route_handler()
 
         async def guarded(request: Request):
-            expected = request.app.state.agent_key
-            supplied = request.headers.get("x-agent-key", "")
-            if not expected or not secrets.compare_digest(
-                supplied.encode(), expected.encode()
-            ):
-                raise DomainError("UNAUTHORIZED")
+            principal = request.app.state.auth.authenticate(request, {"agent"})
+            context = access_context.set(
+                Access(principal, request.headers.get("x-call-key", ""))
+            )
             # Existence and verified identity precede request-body validation,
             # preventing malformed requests from probing unverified state.
-            call_id = request.path_params.get("call_id")
-            if call_id:
-                unverified_route = request.url.path.rsplit("/", 1)[-1] in (
-                    "verify",
-                    "turn",
-                )
-                with request.app.state.db.snapshot() as conn:
-                    get_call(conn, call_id, verified=not unverified_route, live=False)
-            return await handler(request)
+            try:
+                call_id = request.path_params.get("call_id")
+                if call_id:
+                    unverified_route = request.url.path.rsplit("/", 1)[-1] in (
+                        "verify",
+                        "turn",
+                    )
+                    with request.app.state.db.snapshot() as conn:
+                        get_call(
+                            conn, call_id, verified=not unverified_route, live=False
+                        )
+                return await handler(request)
+            finally:
+                access_context.reset(context)
 
         return guarded
 
@@ -63,6 +66,10 @@ def store_turn(
 
 @router.post("/calls/{call_id}/verify", response_model=models.VerifyReply)
 def verify(call_id: str, body: models.VerifyRequest, request: Request):
+    if request.app.state.security.environment == "synthetic" and (
+        body.member_digits is None or body.birth_month is None
+    ):
+        raise DomainError("INVALID_REQUEST")
     return verification.verify_member(
         request.app.state.db, call_id, body.member_digits, body.birth_month
     )

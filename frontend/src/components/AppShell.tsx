@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronsLeft, ChevronsRight, HandHeart, LayoutDashboard, MessagesSquare, Menu, Monitor, Moon, Settings, Stethoscope, Sun, X } from "lucide-react";
+import { ChevronDown, ChevronsLeft, ChevronsRight, HandHeart, LayoutDashboard, MessagesSquare, Menu, Monitor, Moon, Presentation, Settings, Stethoscope, Sun, Workflow, X } from "lucide-react";
 import { Logo, LogoMark } from "../Logo";
 import { buildHash, type View } from "../route";
 import type { ThemeMode } from "../theme";
@@ -59,6 +59,7 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawer, setDrawer] = useState(false);
   const [settings, setSettings] = useState(false);
+  const [explore, setExplore] = useState(false);
   const menuBtn = useRef<HTMLButtonElement>(null);
   const settingsBtn = useRef<HTMLButtonElement>(null);
   const settingsPop = useRef<HTMLDivElement>(null);
@@ -154,6 +155,13 @@ export function AppShell({
               </a>
             );
           })}
+          <button type="button" className="nav-link" aria-expanded={explore} aria-controls="explore-menu" data-tip="System design and presentation" onClick={() => setExplore((open) => !open)}>
+            <Workflow size={18} /><span className="nav-text">Explore</span><ChevronDown size={15} className="nav-text" />
+          </button>
+          {explore && <div id="explore-menu">
+            <button type="button" className="nav-link" onClick={() => go("architecture")} data-tip="System design"><Workflow size={17} /><span className="nav-text">System design</span></button>
+            <button type="button" className="nav-link" onClick={() => go("presentation")} data-tip="Presentation"><Presentation size={17} /><span className="nav-text">Presentation</span></button>
+          </div>}
           {counts.attention > 0 && (
             <p className="nav-note" role="status">
               <span className="dot" /> {counts.attention} {counts.attention === 1 ? "call needs" : "calls need"} attention
@@ -201,8 +209,6 @@ export function AppShell({
             </div>
             <p className="settings-hint">System follows your device and changes with it.</p>
             <h2>More</h2>
-            <button type="button" className="settings-link" onClick={() => go("architecture")}>System design</button>
-            <button type="button" className="settings-link" onClick={() => go("presentation")}>Presentation</button>
             <label className="settings-switch">
               <input type="checkbox" checked={developer} onChange={(e) => onDeveloper(e.target.checked)} />
               <span>Show developer view</span>

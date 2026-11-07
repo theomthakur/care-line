@@ -114,7 +114,13 @@ def test_directory_route_lists_providers_and_open_times(db, clock):
 
     seed_expanded(db, demo_date=clock().date())
     with TestClient(create_app(database=db, agent_key="k")) as c:
-        body = c.get("/providers/directory").json()
+        from tests.security_helpers import TOKENS, configure_roles
+
+        configure_roles(c.app, db.path.parent / "directory-credentials", "k")
+        body = c.get(
+            "/providers/directory",
+            headers={"Authorization": "Bearer " + TOKENS["operator"]},
+        ).json()
     ids = [p["id"] for p in body["providers"]]
     assert ids[:6] == ["P1", "P2", "P3", "P4", "P5", "P6"] and "P17" in ids
     haddad = next(p for p in body["providers"] if p["id"] == "P2")

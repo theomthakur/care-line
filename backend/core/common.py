@@ -29,6 +29,11 @@ def event(conn, call_id, name, now):
 
 
 def get_call(conn, call_id, *, verified=False, live=True, mutable=False):
+    from backend.security import access_context, authorize_call
+
+    access = access_context.get()
+    if access is not None and access.principal.role == "agent":
+        authorize_call(conn, call_id, access)
     call = conn.execute("SELECT * FROM calls WHERE id=?", (call_id,)).fetchone()
     if call is None:
         raise DomainError("CALL_NOT_FOUND")

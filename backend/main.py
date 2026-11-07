@@ -15,11 +15,19 @@ from backend.core.db import Database
 from backend.core.errors import DomainError
 from backend.core.routes import router
 from backend.core.seed import seed, seed_expanded
+from backend.security import Authenticator, SecuritySettings
 
 logger = logging.getLogger(__name__)
 
 
-def create_app(*, database=None, agent_key=None, ops_router=None):
+def create_app(*, database=None, agent_key=None, ops_router=None, security=None):
+    security = security or SecuritySettings.from_env()
+    if (
+        security.environment == "production"
+        and database is None
+        and not os.getenv("MEMBERGUIDE_DB_PATH")
+    ):
+        raise ValueError("Production requires an explicit MEMBERGUIDE_DB_PATH")
     expanded = False
     if database is None:
         expanded = os.environ.get("MEMBERGUIDE_EXPANDED_ROSTER", "1") == "1"
@@ -27,16 +35,27 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
         database.one_call_per_member = (
             os.environ.get("MEMBERGUIDE_ONE_CALL_PER_MEMBER", "1") == "1"
         )
+    database.environment = security.environment
+    database.organization = security.organization
+    database.identity_policy = security.identity_policy
 
     @asynccontextmanager
     async def lifespan(app):
+        security.validate(database.path)
         database.initialize()
-        seed(database)
-        if expanded:
-            seed_expanded(database)
+        if security.environment == "synthetic":
+            seed(database)
+            if expanded:
+                seed_expanded(database)
         yield
 
-    app = FastAPI(title="MemberGuide synthetic booking service", lifespan=lifespan)
+    app = FastAPI(
+        title="MemberGuide booking service",
+        lifespan=lifespan,
+        docs_url="/docs" if security.environment == "synthetic" else None,
+        openapi_url="/openapi.json" if security.environment == "synthetic" else None,
+        redoc_url=None,
+    )
     app.state.db = database
     app.state.db_path = database.path
     app.state.write_ingress = asyncio.Lock()
@@ -46,11 +65,19 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
         if agent_key is not None
         else os.environ.get("MEMBERGUIDE_AGENT_KEY", "")
     )
+    app.state.security = security
+    app.state.auth = Authenticator(security, app.state.agent_key)
 
     @app.middleware("http")
     async def ordered_write_ingress(request: Request, call_next):
+        async def respond():
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            return response
+
         if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
-            return await call_next(request)
+            return await respond()
         # Queue before request-body parsing and thread-pool dispatch. A finalized
         # user turn already admitted here cannot be overtaken by confirm/reset.
         # Ops routes mounted on this app participate in the same barrier.
@@ -62,7 +89,7 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
             error = DomainError("SERVICE_UNAVAILABLE")
             return JSONResponse(error.body, status_code=error.status)
         try:
-            return await call_next(request)
+            return await respond()
         finally:
             app.state.write_ingress.release()
 
@@ -95,6 +122,9 @@ def create_app(*, database=None, agent_key=None, ops_router=None):
         return JSONResponse(error.body, status_code=error.status)
 
     app.include_router(router)
+    from backend.identity import router as identity_router
+
+    app.include_router(identity_router)
     if ops_router is None:
         from backend.ops.router import router as ops_router
     app.include_router(ops_router)

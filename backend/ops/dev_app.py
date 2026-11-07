@@ -12,16 +12,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from backend.core.db import Database
+from backend.main import create_app
 
-from . import install
 from .dev_seed import init_db
 
-DB_PATH = Path(os.getenv("CARELINE_DB", "/tmp/careline-dev.db"))
+DB_PATH = Path(os.getenv("CARELINE_DB", "/tmp/careline-dev/memberguide.db"))
+if os.getenv("MEMBERGUIDE_ENV", "synthetic") != "synthetic":
+    raise ValueError("Development application is forbidden in production")
 if not DB_PATH.exists():
     init_db(DB_PATH).close()
 
-app = FastAPI(title="Care Line ops (dev)")
-app.state.db_path = DB_PATH
-app.state.agent_key = os.getenv("MEMBERGUIDE_AGENT_KEY", "")
-install(app)
+app = create_app(database=Database(DB_PATH))

@@ -149,10 +149,10 @@ async def test_concurrent_sessions_are_isolated_end_to_end(service):
 async def test_same_room_is_one_call_but_different_rooms_never_collide(service):
     session, _, _ = service
     first, replay, other = session(), session(), session()
-    await asyncio.gather(
-        first.start("call-room-1"),
-        replay.start("call-room-1"),
-        other.start("call-room-2"),
-    )
-    assert first.call_id == replay.call_id  # the room is the idempotency key
-    assert other.call_id != first.call_id  # a new real call uses a new room
+    await first.start("call-room-1")
+    # The same room is idempotent only with the original session capability.
+    await first.start("call-room-1")
+    with pytest.raises((KeyError, RuntimeError)):
+        await replay.start("call-room-1")
+    await other.start("call-room-2")
+    assert other.call_id != first.call_id

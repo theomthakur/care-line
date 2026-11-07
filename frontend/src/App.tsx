@@ -21,7 +21,7 @@ import { ActivityTimeline, BookingCard, HandoffPanel, SlotList, SummaryPanel } f
 import { DemoControls, DemoMemberCard } from "./components/DemoControls";
 import { Card, Chip, SkeletonLines } from "./components/ui";
 
-const isFixture = new URLSearchParams(window.location.search).get("source") === "fixture";
+const isFixture = import.meta.env.VITE_FIXTURE_ONLY === "1" || new URLSearchParams(window.location.search).get("source") === "fixture";
 
 const TITLES: Record<View, string> = {
   overview: "Overview",
@@ -167,7 +167,7 @@ export function App() {
   const [tab, setTab] = useState<Tab>("call");
   const [developer, setDeveloperState] = useState(readDeveloper);
 
-  const view: View = isFixture ? "conversations" : route.view;
+  const view: View = route.view;
   const inConv = view === "conversations";
   const selectedId = isFixture ? null : route.call;
 

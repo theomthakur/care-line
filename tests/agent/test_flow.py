@@ -69,6 +69,25 @@ async def test_happy_path_books_once_after_a_read_back_and_a_later_yes(
     assert "M G A P T 4 8 2 1" in again and len(be.appointments) == 1
 
 
+async def test_production_identity_check_never_requests_demo_digits(be, monkeypatch):
+    monkeypatch.setenv("MEMBERGUIDE_ENV", "production")
+    f = Flow(be)
+    await f.start("human-identity-test")
+
+    async def pending_review(call_id, digits, birth_month):
+        assert (digits, birth_month) == ("", "")
+        return {
+            "ok": False,
+            "error": "HUMAN_VERIFICATION_REQUIRED",
+            "speak": "A representative needs to verify your identity. A help request was saved.",
+        }
+
+    monkeypatch.setattr(be, "verify", pending_review)
+    result = await f.verify("", "")
+    assert "representative" in result and "digits" not in result
+    assert f.verified is False
+
+
 async def test_a_yes_spoken_before_the_read_back_finished_never_books(
     be: FakeBackend,
 ) -> None:

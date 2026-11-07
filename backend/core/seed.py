@@ -93,6 +93,8 @@ BASIC_PREV = "One annual preventive visit with an in-network primary care provid
 
 
 def seed(db, *, demo_date=None, care_journeys=False):
+    if db.environment != "synthetic":
+        raise ValueError("Synthetic fixtures are forbidden in production")
     demo_date = demo_date or db.now().astimezone(EASTERN).date()
     # Keep the promised weekday/time pairs even when reseeded on another day.
     next_days = {
@@ -253,6 +255,8 @@ def seed(db, *, demo_date=None, care_journeys=False):
 
 
 def seed_expanded(db, *, demo_date=None):
+    if db.environment != "synthetic":
+        raise ValueError("Synthetic fixtures are forbidden in production")
     """Add the wider roster and ten business days of 30-minute slots. Safe to repeat."""
     demo_date = demo_date or db.now().astimezone(EASTERN).date()
     days = []

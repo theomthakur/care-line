@@ -2,7 +2,7 @@ name: MemberGuide core
 
 on:
   push:
-    branches: [main, booking-core]
+    branches: [main, booking-core, booking-core-compliance]
   pull_request:
 
 permissions:
@@ -17,6 +17,45 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install uv
-      - run: uv run --with httpx python -m pytest tests/core -q
-      - run: uv run ruff format --check backend tests/core
-      - run: uv run ruff check backend tests/core
+      - run: uv sync --locked
+      - run: uv run python -m pytest tests/core tests/ops tests/agent tests/integration -q
+      - run: uv run ruff format --check backend tests/core tests/ops tests/agent tests/integration tests/security_helpers.py src/backend_client.py src/connection_security.py src/my_agent.py src/flow.py scripts
+      - run: uv run ruff check backend tests/core tests/ops tests/agent tests/integration tests/security_helpers.py src/backend_client.py src/connection_security.py src/my_agent.py src/flow.py scripts
+
+  identity-scenario:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Separate synthetic LiveKit project, never production credentials.
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_TEST_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_TEST_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_TEST_API_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install uv
+      - run: uv sync --locked
+      - name: Require synthetic test-project credentials
+        run: |
+          : "${LIVEKIT_URL:?Configure LIVEKIT_TEST_URL}"
+          : "${LIVEKIT_API_KEY:?Configure LIVEKIT_TEST_API_KEY}"
+          : "${LIVEKIT_API_SECRET:?Configure LIVEKIT_TEST_API_SECRET}"
+      - name: Install LiveKit CLI
+        run: |
+          curl -fsSL https://get.livekit.io/cli -o "$RUNNER_TEMP/install-livekit.sh"
+          bash "$RUNNER_TEMP/install-livekit.sh"
+      - name: Run one isolated identity scenario
+        run: |
+          fixture="$RUNNER_TEMP/memberguide-identity"
+          uv run python scripts/identity_test_backend.py --directory "$fixture" > "$RUNNER_TEMP/identity-backend.log" 2>&1 &
+          backend_pid=$!
+          trap 'kill "$backend_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..100}; do
+            if test -f "$fixture/runtime.env"; then break; fi
+            sleep 0.1
+          done
+          uv run --env-file "$fixture/runtime.env" lk agent simulate text --scenarios scenarios-identity.yaml --concurrency 1
+          uv run python scripts/assert_identity_fixture.py "$fixture/fixture.db"

@@ -37,8 +37,8 @@ class TurnRequest(RequestModel):
 
 
 class VerifyRequest(RequestModel):
-    member_digits: ID
-    birth_month: int = Field(ge=1, le=12)
+    member_digits: ID | None = None
+    birth_month: int | None = Field(default=None, ge=1, le=12)
 
 
 class ProviderRequest(RequestModel):

@@ -10,16 +10,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend import ops  # noqa: E402
+from backend.core.db import Database  # noqa: E402
+from backend.main import create_app  # noqa: E402
 from backend.ops import clock  # noqa: E402
 from backend.ops.db import connect  # noqa: E402
 from backend.ops.dev_seed import build_stage, init_db  # noqa: E402
+from backend.security import digest  # noqa: E402
+from tests.security_helpers import TOKENS, configure_roles  # noqa: E402
 
 CALL_START = datetime(2026, 11, 6, 21, 0, 0, tzinfo=timezone.utc)  # 4:00 PM Eastern
 EXAMPLES = ROOT / "contracts" / "examples"
@@ -49,17 +51,22 @@ def conn(db_path):
 @pytest.fixture
 def stage(conn):
     def _stage(name: str):
-        return build_stage(conn, name, base=CALL_START)
+        result = build_stage(conn, name, base=CALL_START)
+        conn.execute(
+            "INSERT INTO call_access VALUES ('c_01','development-agent',?)",
+            (digest("ops-test-call-capability-at-least-32-characters"),),
+        )
+        return result
 
     return _stage
 
 
 @pytest.fixture
 def app(db_path):
-    a = FastAPI()
-    a.state.db_path = db_path
-    a.state.agent_key = "dev-agent-key"
-    ops.install(a)
+    db = Database(db_path)
+    db.initialize()
+    a = create_app(database=db, agent_key="dev-agent-key")
+    configure_roles(a, db_path.parent / "credentials.json")
     return a
 
 
@@ -67,6 +74,14 @@ def asgi_caller(app):
     """Minimal ASGI client so route tests need no extra dependency."""
 
     async def _call(method: str, path: str, body=None, headers=None):
+        if headers is None and not path.endswith(("/followup", "/finalize")):
+            role = "admin" if path.startswith("/admin/") else "operator"
+            headers = {"Authorization": "Bearer " + TOKENS[role]}
+        if headers and "X-Agent-Key" in headers:
+            headers = {
+                **headers,
+                "X-Call-Key": "ops-test-call-capability-at-least-32-characters",
+            }
         raw = b"" if body is None else json.dumps(body).encode()
         hdrs = [
             (b"content-type", b"application/json"),
