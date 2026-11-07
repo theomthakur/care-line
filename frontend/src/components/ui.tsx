@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ChevronDown } from "lucide-react";
 
 export type ChipTone = "slate" | "green" | "amber" | "red" | "blue" | "teal" | "outline";
 
@@ -20,6 +20,8 @@ export function Card({
   children,
   as: Tag = "section",
   label,
+  collapsible,
+  defaultOpen = true,
 }: {
   title: ReactNode;
   icon?: ReactNode;
@@ -29,7 +31,26 @@ export function Card({
   children: ReactNode;
   as?: "section" | "div";
   label?: string;
+  /** Progressive disclosure: the header becomes a toggle and the body can be folded away. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  if (collapsible) {
+    return (
+      <details className={`card disclosure ${className}`} open={defaultOpen} aria-label={label}>
+        <summary className="card-head">
+          <h2>
+            {icon}
+            {title}
+          </h2>
+          <span className="spacer" />
+          {meta && <span className="card-meta">{meta}</span>}
+          <ChevronDown size={15} className="disc-chev" aria-hidden="true" />
+        </summary>
+        <div className={bodyClass}>{children}</div>
+      </details>
+    );
+  }
   return (
     <Tag className={`card ${className}`} aria-label={label}>
       <header className="card-head">

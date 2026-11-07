@@ -16,6 +16,7 @@ from .calls import DEFAULT_RECENT, MAX_RECENT, list_calls
 from .db import get_conn
 from .errors import OpsError
 from .state import build_state
+from .sweeper import ensure_sweeper
 from .tasks import CATEGORIES, complete_task, create_task, dedupe_key_for, list_tasks
 
 
@@ -28,14 +29,23 @@ class OpsRoute(APIRoute):
 
         async def guarded(request: Request) -> Response:
             try:
-                return await handler(request)
+                response = await handler(request)
             except OpsError as exc:
-                return JSONResponse(exc.detail, status_code=exc.status_code)
+                response = JSONResponse(exc.detail, status_code=exc.status_code)
+            # Case data (names, transcripts, bookings) must never sit in a browser or proxy cache.
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            return response
 
         return guarded
 
 
-router = APIRouter(route_class=OpsRoute)
+async def _start_sweeper(request: Request) -> None:
+    """Schedules the background sweeper once per app. Writes nothing and touches no handler."""
+    ensure_sweeper(request.app)
+
+
+router = APIRouter(route_class=OpsRoute, dependencies=[Depends(_start_sweeper)])
 
 
 def install(app: FastAPI) -> None:
@@ -170,7 +180,10 @@ def calls_list(
     recent: int = Query(DEFAULT_RECENT, ge=0, le=MAX_RECENT),
     conn: sqlite3.Connection = Depends(get_conn),
 ):
-    """All live calls plus the most recent finished ones, for the console's call list."""
+    """All live calls plus the most recent finished ones, for the console's call list.
+
+    Read-only. Calls that went quiet without being finalized are closed by the background
+    sweeper (``sweeper.py``), not here."""
     return {"calls": list_calls(conn, recent), "speak": ""}
 
 
@@ -181,6 +194,26 @@ def call_state(call_id: str, conn: sqlite3.Connection = Depends(get_conn)):
     if state is None:
         raise OpsError("CALL_NOT_FOUND")
     return {"state": state, "speak": ""}
+
+
+@router.get("/calls/{call_id}/summary")
+def call_summary(call_id: str, conn: sqlite3.Connection = Depends(get_conn)):
+    """Post-call summary for one call: the stored outcome plus structured facts re-read from
+    saved rows (verification, provider, booking, problems, follow-ups, next action).
+
+    Kept off ``/calls/{id}/state`` so that object stays exactly the contract's ``State``."""
+    row = conn.execute(
+        "SELECT status, summary_json FROM calls WHERE id = ?", (call_id,)
+    ).fetchone()
+    if row is None:
+        raise OpsError("CALL_NOT_FOUND")
+    stored = summary.stored_summary(row["summary_json"])
+    return {
+        "status": row["status"],
+        "summary": stored or None,
+        "details": summary.summary_details(conn, call_id),
+        "speak": "",
+    }
 
 
 @router.get("/tasks")

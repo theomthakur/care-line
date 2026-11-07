@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -17,7 +17,7 @@ import {
 import { ApiError, completeTask } from "../api";
 import { bookingPhase, eventView, progress } from "../derive";
 import { shortClock, slotDay, slotTime } from "../format";
-import type { CallState, DaySlot, SummaryOutcome, Task } from "../types";
+import type { CallState, DaySlot, SummaryDetails, Task } from "../types";
 import { Card, Chip, InlineError, Na, Spinner } from "./ui";
 
 function useCountdown(iso: string | null | undefined, on: boolean): number | null {
@@ -48,7 +48,7 @@ export function BookingCard({ s }: { s: CallState }) {
         <CalendarCheck2 size={15} color={phase === "confirmed" ? "var(--green-700)" : "var(--ink-400)"} />
         <h2 style={{ fontSize: 13, fontWeight: 620, color: phase === "confirmed" ? "var(--green-700)" : undefined }}>Appointment</h2>
         <span style={{ flex: 1 }} />
-        {phase === "confirmed" && <Chip tone="green"><CheckCircle2 size={12} /> Confirmed by backend</Chip>}
+        {phase === "confirmed" && <Chip tone="green"><CheckCircle2 size={12} /> Booked and confirmed</Chip>}
         {phase === "awaiting_yes" && <Chip tone="amber"><Hourglass size={12} /> Awaiting caller's yes</Chip>}
         {phase === "proposed" && <Chip tone="blue">Proposed · not booked</Chip>}
         {phase === "conflict" && <Chip tone="red"><AlertTriangle size={12} /> Slot taken</Chip>}
@@ -68,7 +68,7 @@ export function BookingCard({ s }: { s: CallState }) {
           <div style={{ marginTop: 18 }}>
             <div className="confirm-label">Confirmation number</div>
             <div className="confirm-num" aria-label={`Confirmation ${a.confirmation}`}>{a.confirmation}</div>
-            <div className="muted" style={{ fontSize: 12.5 }}>Stored as appointment <span className="mono">{a.appointment_id}</span>{a.simulated ? " · simulated schedule" : ""}</div>
+            <div className="muted" style={{ fontSize: 12.5 }}>Saved in the schedule{a.simulated ? " (simulated provider schedule)" : ""}</div>
             <div className="booking-grid">
               <div className="wide"><div className="lbl">When</div><div className="val">{a.when}</div></div>
               <div><div className="lbl">Doctor</div><div className="val">{a.doctor}</div></div>
@@ -116,11 +116,11 @@ export function BookingCard({ s }: { s: CallState }) {
 
 // ---------------------------------------------------------------- timeline
 
-export function ActivityTimeline({ s }: { s: CallState }) {
+export function ActivityTimeline({ s, developer = false }: { s: CallState; developer?: boolean }) {
   return (
-    <Card title="Activity" icon={<History size={15} />} meta={s.events.length ? `${s.events.length} events` : undefined}>
+    <Card title="Call timeline" icon={<History size={15} />} collapsible defaultOpen={false} meta={s.events.length ? `${s.events.length} steps` : undefined}>
       {s.events.length === 0 ? (
-        <span className="muted">Backend events appear here in order.</span>
+        <span className="muted">Steps appear here in order as the call goes on.</span>
       ) : (
         <ol className="timeline" style={{ margin: 0, padding: 0, listStyle: "none" }}>
           {s.events.map((name, i) => {
@@ -132,7 +132,7 @@ export function ActivityTimeline({ s }: { s: CallState }) {
                 </span>
                 <div>
                   <div className="tl-label">{v.label}</div>
-                  <div className="tl-sub mono">{name}</div>
+                  {developer && <div className="tl-sub mono">{name}</div>}
                 </div>
               </li>
             );
@@ -166,7 +166,7 @@ export function SlotList({ s }: { s: CallState }) {
     if (el && box.current) box.current.scrollTop = Math.max(0, el.offsetTop - 56);
   }, [focusId]);
   return (
-    <Card title="Schedule" icon={<CalendarClock size={15} />} meta={provider ? provider.name : "Simulated provider schedule"}>
+    <Card title="Doctor schedule" icon={<CalendarClock size={15} />} collapsible defaultOpen={false} meta={provider ? provider.name : "Simulated provider schedule"}>
       <div ref={box} className="slot-scroll">
       {s.day_slots.length === 0 ? (
         <span className="muted">Slots for the selected doctor appear once times are offered.</span>
@@ -197,17 +197,17 @@ export function SlotList({ s }: { s: CallState }) {
 
 // ---------------------------------------------------------------- handoff
 
-const CATEGORY: Record<string, string> = {
-  caller_requested: "Caller requested a person",
-  knowledge_gap: "Knowledge gap",
+export const CATEGORY: Record<string, string> = {
+  caller_requested: "Caller asked for a person",
+  knowledge_gap: "Question to answer",
   verification_failed: "Verification failed",
   tool_failure: "System problem",
-  safety: "Safety",
-  policy_required: "Policy review",
-  waitlist: "Waitlist",
+  safety: "Safety concern",
+  policy_required: "Needs policy review",
+  waitlist: "No open times",
 };
 
-function Packet({ t, canAct, onChanged }: { t: Task; canAct: boolean; onChanged: () => void }) {
+export function Packet({ t, canAct, onChanged, extra }: { t: Task; canAct: boolean; onChanged: () => void; extra?: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const p = t.packet;
@@ -261,6 +261,7 @@ function Packet({ t, canAct, onChanged }: { t: Task; canAct: boolean; onChanged:
       <div className="packet-foot">
         <span className="muted" style={{ fontSize: 12 }}>{done ? `Completed ${shortClock(t.completed_at)} ET` : `Saved ${shortClock(t.created_at)} ET`}</span>
         <span style={{ flex: 1 }} />
+        {extra}
         {!done && (
           <button className="btn primary sm" onClick={complete} disabled={busy || !canAct} title={canAct ? undefined : "Disabled in fixture mode"}>
             {busy ? <Spinner /> : <Check size={14} />} Mark complete
@@ -274,9 +275,9 @@ function Packet({ t, canAct, onChanged }: { t: Task; canAct: boolean; onChanged:
 export function HandoffPanel({ s, canAct, onChanged }: { s: CallState; canAct: boolean; onChanged: () => void }) {
   const open = s.tasks.filter((t) => t.status === "open").length;
   return (
-    <Card title="Handoff" icon={<HandHeart size={15} />} meta={s.tasks.length ? (open ? `${open} open` : "All complete") : undefined}>
+    <Card title="Follow-ups for the team" icon={<HandHeart size={15} />} meta={s.tasks.length ? (open ? `${open} open` : "All complete") : undefined}>
       {s.tasks.length === 0 ? (
-        <span className="muted">No handoff needed. A packet is saved here when the call needs a person: a requested callback, failed verification or no open times.</span>
+        <span className="muted">No follow-up needed. A request is saved here when the call needs a person: a requested callback, failed verification or no open times.</span>
       ) : (
         s.tasks.map((t) => <Packet key={t.task_id} t={t} canAct={canAct} onChanged={onChanged} />)
       )}
@@ -286,44 +287,99 @@ export function HandoffPanel({ s, canAct, onChanged }: { s: CallState; canAct: b
 
 // ---------------------------------------------------------------- summary
 
-const OUTCOME: Record<SummaryOutcome, { label: string; tone: "green" | "blue" | "amber" | "red" }> = {
-  booked: { label: "Booked", tone: "green" },
-  followup: { label: "Follow-up needed", tone: "blue" },
-  not_completed: { label: "Not completed", tone: "amber" },
-  unknown: { label: "Outcome unknown", tone: "red" },
+const OUTCOME_TONE = { booked: "green", followup: "amber", not_completed: "slate", unknown: "red" } as const;
+
+const VERIFICATION: Record<SummaryDetails["verification"], { label: string; tone: "green" | "red" | "amber" | "slate" }> = {
+  verified: { label: "Member verified", tone: "green" },
+  failed: { label: "Verification failed", tone: "red" },
+  locked: { label: "Verification locked", tone: "red" },
+  not_attempted: { label: "Not attempted", tone: "slate" },
 };
 
-export function SummaryPanel({ s }: { s: CallState }) {
+function outcomeLabel(outcome: string, details?: SummaryDetails | null): string {
+  if (outcome === "booked") return "Appointment booked";
+  if (outcome === "followup") return details && details.follow_ups.length && details.follow_ups.every((f) => f.status === "completed") ? "Follow-up completed" : "Needs follow-up";
+  if (outcome === "not_completed") return "Ended without booking";
+  return "Needs review";
+}
+
+/** The post-call summary. Everything is read from saved records; nothing is written by a model. */
+export function SummaryPanel({ s, details }: { s: CallState; details?: SummaryDetails | null }) {
   const sum = s.summary;
-  const openTasks = s.tasks.filter((t) => t.status === "open");
+  const live = s.status === "live";
+  if (live && !sum) {
+    return (
+      <Card title="Call summary" icon={<ClipboardList size={15} />} meta="After the call ends">
+        <span className="muted">A summary is put together from the saved call record when the call ends. Until then, follow the case on this page.</span>
+      </Card>
+    );
+  }
+  const verification = details ? VERIFICATION[details.verification] : null;
+  const appt = details?.appointment;
   return (
-    <Card title="Call summary" icon={<ClipboardList size={15} />} meta={s.status === "finalized" ? "Built from stored records" : undefined}>
-      {!sum ? (
-        <span className="muted">{s.status === "live" ? "The summary is built from stored records after the call ends." : "No summary was stored for this call."}</span>
-      ) : (
+    <Card title="Call summary" icon={<ClipboardList size={15} />} meta="Built from saved records" label="Call summary">
+      {sum ? (
         <>
           <div className="summary-outcome">
-            <Chip lg tone={(OUTCOME[sum.outcome] ?? OUTCOME.unknown).tone}>{(OUTCOME[sum.outcome] ?? OUTCOME.unknown).label}</Chip>
-            {sum.confirmation && <Chip lg tone="outline"><span className="mono">{sum.confirmation}</span></Chip>}
+            <Chip lg tone={OUTCOME_TONE[sum.outcome] ?? "red"}>{outcomeLabel(sum.outcome, details)}</Chip>
+            {(appt?.confirmation ?? sum.confirmation) && <Chip lg tone="outline"><span className="mono">{appt?.confirmation ?? sum.confirmation}</span></Chip>}
           </div>
           <p className="summary-text">{sum.text}</p>
           {sum.outcome === "unknown" && (
             <div className="pending-note red"><AlertTriangle size={16} /><span>The booking result could not be confirmed. Check the schedule before telling the caller anything.</span></div>
           )}
-          <dl className="kv" style={{ marginTop: 14 }}>
-            <dt>First request</dt>
-            <dd>{sum.reason || <Na />}</dd>
-            <dt>Outstanding</dt>
-            <dd>{openTasks.length ? `${openTasks.length} open handoff${openTasks.length === 1 ? "" : "s"}` : <span className="muted">None</span>}</dd>
-          </dl>
-          {openTasks.length > 0 && (
-            <ul className="summary-list">
-              {openTasks.map((t) => (
-                <li key={t.task_id} className="next-action"><Phone size={15} /><span><b className="mono">{t.packet.reference}</b> · {t.packet.suggested_next_action}</span></li>
-              ))}
-            </ul>
+          {sum.ended_reason === "dropped" && (
+            <div className="pending-note neutral"><Phone size={16} /><span>The call ended without a normal hang-up. This summary was put together from what was saved during the call.</span></div>
           )}
         </>
+      ) : (
+        <span className="muted">No outcome was stored for this call.</span>
+      )}
+      <dl className="kv summary-kv">
+        <dt>Verification</dt>
+        <dd>{verification ? <Chip tone={verification.tone}>{verification.label}</Chip> : <Na>Loading…</Na>}</dd>
+        <dt>Original request</dt>
+        <dd>{sum?.reason || <Na />}</dd>
+        <dt>Provider</dt>
+        <dd>{details ? details.provider ? <>{details.provider.name}{details.provider.phone ? <span className="muted num"> · {details.provider.phone}</span> : null}</> : <span className="muted">None chosen</span> : <Na>Loading…</Na>}</dd>
+        <dt>Appointment</dt>
+        <dd>{details ? appt ? <>{appt.when}</> : <span className="muted">No appointment booked</span> : <Na>Loading…</Na>}</dd>
+        <dt>Problems</dt>
+        <dd>
+          {details ? (
+            details.problems.length ? (
+              <ul className="plain-list">{details.problems.map((p, i) => <li key={i}>{p}</li>)}</ul>
+            ) : (
+              <span className="muted">None</span>
+            )
+          ) : (
+            <Na>Loading…</Na>
+          )}
+        </dd>
+        <dt>Follow-ups</dt>
+        <dd>
+          {details ? (
+            details.follow_ups.length ? (
+              <ul className="plain-list">
+                {details.follow_ups.map((f) => (
+                  <li key={f.reference}>
+                    <b className="mono">{f.reference}</b> · {f.status === "open" ? <span className="open-tag">Open</span> : <span className="muted">Completed</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <span className="muted">None</span>
+            )
+          ) : (
+            <Na>Loading…</Na>
+          )}
+        </dd>
+      </dl>
+      {details?.next_action && (
+        <div className="next-step">
+          <h4>Next step</h4>
+          <div className="next-action"><Flag size={15} />{details.next_action}</div>
+        </div>
       )}
     </Card>
   );

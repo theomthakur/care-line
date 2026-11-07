@@ -3,7 +3,8 @@
 ``list_calls`` summarises every live call and the most recent finished ones in one
 read snapshot. Everything is keyed by ``call_id`` and derived from stored rows: a call
 is only ``booked`` if an appointment row exists, and nothing here exposes a token,
-hash, verification digits or another call's data.
+hash, verification digits, transcript text or another call's data. List rows carry no
+transcript at all: the full conversation is only in the selected call's state.
 """
 
 from __future__ import annotations
@@ -13,12 +14,10 @@ import sqlite3
 from typing import Any
 
 from . import clock
-from .state import VERIFICATION_EVENTS, mask_turn
 
 DEFAULT_RECENT = 20
 MAX_RECENT = 100
 LIVE_CAP = 100
-SNIPPET = 140
 
 STAGES = (
     "unverified",
@@ -58,19 +57,6 @@ def _rows(
     return conn.execute(
         f"{_SELECT} WHERE {where} ORDER BY {order} LIMIT ?", (limit,)
     ).fetchall()
-
-
-def _last_turns(conn: sqlite3.Connection, ids: list[str]) -> dict[str, sqlite3.Row]:
-    if not ids:
-        return {}
-    marks = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"SELECT t.call_id, t.role, t.text, t.received_at FROM turns t "
-        f"JOIN (SELECT call_id, MAX(seq) AS seq FROM turns WHERE call_id IN ({marks}) "
-        f"GROUP BY call_id) x ON x.call_id = t.call_id AND x.seq = t.seq",
-        ids,
-    ).fetchall()
-    return {r["call_id"]: r for r in rows}
 
 
 def _events(conn: sqlite3.Connection, ids: list[str]) -> dict[str, list[sqlite3.Row]]:
@@ -130,18 +116,8 @@ def _outcome(row: sqlite3.Row) -> str | None:
     return value.get("outcome") if isinstance(value, dict) else None
 
 
-def _view(
-    row: sqlite3.Row,
-    events: list[sqlite3.Row],
-    last_turn: sqlite3.Row | None,
-    now_s: str,
-) -> dict[str, Any]:
+def _view(row: sqlite3.Row, events: list[sqlite3.Row], now_s: str) -> dict[str, Any]:
     names = [e["name"] for e in events]
-    boundary = None
-    for e in events:
-        if e["name"] in VERIFICATION_EVENTS:
-            boundary = e["created_at"]
-    unresolved = row["verification_status"] != "verified"
     outcome = _outcome(row)
     verified = row["verification_status"] == "verified" and row["display_name"]
     activity = max(
@@ -154,21 +130,6 @@ def _view(
         )
         if v
     )
-    snippet = None
-    if last_turn is not None:
-        text = mask_turn(
-            last_turn["role"],
-            last_turn["text"],
-            last_turn["received_at"],
-            unresolved,
-            boundary,
-        )
-        snippet = {
-            "role": last_turn["role"],
-            "text": text
-            if len(text) <= SNIPPET
-            else text[: SNIPPET - 1].rstrip() + "\u2026",
-        }
     return {
         "call_id": row["id"],
         "status": row["status"],
@@ -188,7 +149,6 @@ def _view(
         "open_tasks": row["open_tasks"],
         "outcome": outcome,
         "confirmation": row["confirmation"],
-        "last_turn": snippet,
     }
 
 
@@ -212,8 +172,7 @@ def list_calls(conn: sqlite3.Connection, recent: int = DEFAULT_RECENT) -> list[d
             )
         ids = [r["id"] for r in rows]
         events = _events(conn, ids)
-        turns = _last_turns(conn, ids)
-        return [_view(r, events[r["id"]], turns.get(r["id"]), now_s) for r in rows]
+        return [_view(r, events[r["id"]], now_s) for r in rows]
     finally:
         if own_txn:
             conn.execute("COMMIT")

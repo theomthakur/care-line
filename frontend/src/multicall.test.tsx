@@ -28,7 +28,7 @@ function mkSummary(id: string, name: string | null, over: Partial<CallSummary> =
     call_id: id, status: "live", verification: name ? "verified" : "unverified",
     member: name ? { name, id_masked: "***" + id.slice(-4) } : null, stage: name ? "verified" : "unverified",
     created_at: "2026-11-06T21:00:00Z", finalized_at: null, last_activity_at: "2026-11-06T21:00:05Z",
-    turn_count: 1, task_count: 0, open_tasks: 0, outcome: null, confirmation: null, last_turn: null, ...over,
+    turn_count: 1, task_count: 0, open_tasks: 0, outcome: null, confirmation: null, ...over,
   };
 }
 
@@ -71,7 +71,7 @@ const row = (label: RegExp) => screen.getAllByRole("option").find((o) => label.t
 
 beforeEach(() => {
   vi.useFakeTimers();
-  window.location.hash = "";
+  window.location.hash = "#view=conversations";
   be = new Backend();
   vi.stubGlobal("fetch", (url: string) => be.fetch(url));
 });
@@ -93,7 +93,7 @@ describe("multi-call console", () => {
     await tick(50);
     expect(selectedName()).toContain("Riley C.");
     expect(bubbles()).toEqual(["B-ONLY one"]);
-    expect(screen.getByTitle("call_B")).toBeInTheDocument(); // call bar names the opened call
+    expect(within(screen.getByRole("region", { name: "Selected conversation" })).getByTitle("call_B")).toBeInTheDocument(); // the case header names the opened call
   });
 
   it("keeps the selected call while other calls update and new calls arrive (scenarios B and E)", async () => {
@@ -138,7 +138,7 @@ describe("multi-call console", () => {
     expect(selectedName()).toContain("Maya T.");
     expect(within(screen.getByRole("region", { name: "Recent" })).getByText("Maya T.")).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "Active" })).getByText("Riley C.")).toBeInTheDocument();
-    expect(screen.getByText("Final transcript")).toBeInTheDocument();
+    expect(screen.getByText("Full transcript")).toBeInTheDocument();
   });
 
   it("survives a backend interruption on the same call and recovers (scenario F)", async () => {
