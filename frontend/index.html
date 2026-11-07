@@ -5,8 +5,19 @@
     <meta name="theme-color" content="#0d3138" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script>
+      /* Apply the saved theme before first paint so dark mode never flashes light. Preference only. */
+      (function () {
+        try {
+          var m = localStorage.getItem("careline-theme");
+          var dark = m === "dark" || ((m === null || m === "system") && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.dataset.themeMode = m === "light" || m === "dark" ? m : "system";
+        } catch (e) {}
+      })();
+    </script>
     <title>Care Line · Operator console</title>
   </head>
   <body>

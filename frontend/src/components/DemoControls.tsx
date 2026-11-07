@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlaskConical, RotateCcw, UserMinus } from "lucide-react";
+import { ChevronDown, FlaskConical, RotateCcw, UserMinus } from "lucide-react";
 import { ApiError, resetDemo, takeSlot } from "../api";
 import { takeTarget } from "../derive";
 import type { CallState } from "../types";
@@ -37,12 +37,13 @@ export function DemoControls({ s, canAct, onChanged }: { s: CallState | null; ca
 
   const why = !canAct ? "Disabled in fixture mode" : undefined;
   return (
-    <section className="card demo" aria-label="Demo controls">
-      <header className="card-head" style={{ borderBottomStyle: "dashed" }}>
+    <details className="card demo disclosure" aria-label="Demo controls">
+      <summary className="card-head" style={{ borderBottomStyle: "dashed" }}>
         <h2><FlaskConical size={15} /> Demo controls</h2>
         <span className="spacer" />
         <span className="card-meta">Simulation only</span>
-      </header>
+        <ChevronDown size={15} className="disc-chev" aria-hidden="true" />
+      </summary>
       <div className="card-body">
         <div className="demo-row">
           <div className="grow">
@@ -73,7 +74,7 @@ export function DemoControls({ s, canAct, onChanged }: { s: CallState | null; ca
         </div>
         {err && <InlineError>{err}</InlineError>}
       </div>
-    </section>
+    </details>
   );
 }
 

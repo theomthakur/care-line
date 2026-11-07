@@ -8,7 +8,7 @@ export function MemberPanel({ s }: { s: CallState }) {
   const v = verificationLabel(s);
   const m = s.member;
   return (
-    <Card title="Member" icon={<UserRound size={15} />} meta={<Chip tone={v.tone === "green" ? "green" : v.tone === "red" ? "red" : "amber"}>{v.tone === "green" ? <BadgeCheck size={12} /> : <ShieldCheck size={12} />}{v.text}</Chip>}>
+    <Card title="Member and verification" icon={<UserRound size={15} />} collapsible defaultOpen meta={<Chip tone={v.tone === "green" ? "green" : v.tone === "red" ? "red" : "amber"}>{v.tone === "green" ? <BadgeCheck size={12} /> : <ShieldCheck size={12} />}{v.text}</Chip>}>
       <div className="member-head">
         <div className={`member-avatar ${m ? "" : "empty"}`} aria-hidden="true">{m ? initials(m.name) : "?"}</div>
         <div>
@@ -34,7 +34,7 @@ export function RequestPanel({ s }: { s: CallState }) {
   const r = s.request;
   const empty = r.version === 0 && !r.specialty && !r.zip;
   return (
-    <Card title="Current request" icon={<Search size={15} />} meta={r.version > 1 ? <Chip tone="blue">Revised · v{r.version}</Chip> : r.version === 1 ? <Chip>v1</Chip> : undefined}>
+    <Card title="What the caller asked for" icon={<Search size={15} />} collapsible defaultOpen meta={r.version > 1 ? <Chip tone="blue">Revised · v{r.version}</Chip> : r.version === 1 ? <Chip>v1</Chip> : undefined}>
       {empty ? (
         <span className="muted">No search yet. The agent records the specialty and ZIP once the caller states them.</span>
       ) : (
@@ -57,6 +57,8 @@ export function ProviderPanel({ s }: { s: CallState }) {
     <Card
       title="Providers"
       icon={<Building2 size={15} />}
+      collapsible
+      defaultOpen={false}
       meta={has ? <span>{s.providers.length} eligible{s.excluded.length ? ` · ${s.excluded.length} excluded` : ""}</span> : undefined}
     >
       {!has ? (
@@ -99,7 +101,6 @@ export function ProviderPanel({ s }: { s: CallState }) {
                       <div className="ename">{e.name}</div>
                       <div className="ereason">
                         <Chip tone="amber">{e.reason}</Chip>
-                        <span className="faint mono" title="Contract reason code">{e.reason_code}</span>
                       </div>
                     </div>
                   </li>
@@ -115,7 +116,7 @@ export function ProviderPanel({ s }: { s: CallState }) {
 
 export function EvidencePanel({ s }: { s: CallState }) {
   return (
-    <Card title="Plan evidence" icon={<FileText size={15} />} meta={s.evidence.length ? <Chip tone="teal"><ShieldCheck size={12} />From system data</Chip> : undefined}>
+    <Card title="Plan evidence" icon={<FileText size={15} />} collapsible defaultOpen={false} meta={s.evidence.length ? <Chip tone="teal"><ShieldCheck size={12} />From system data</Chip> : undefined}>
       {s.evidence.length === 0 ? (
         <span className="muted">No plan passage has been returned for this call yet. Nothing here is written by the model.</span>
       ) : (

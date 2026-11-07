@@ -171,10 +171,10 @@ def test_a_interleaved_calls_both_active_and_isolated(web, clk):
         == sb["turns"][0]["text"]
         == "[Demo verification details redacted]"
     )
-    # the list carries the right snippet and counts for each call
+    # the list carries counts only: no transcript text at all
     summary = by_id(calls)
-    assert summary[a.id]["last_turn"]["text"].startswith("A-ONLY")
-    assert summary[b.id]["last_turn"]["text"].startswith("B-ONLY")
+    assert "last_turn" not in summary[a.id] and "last_turn" not in summary[b.id]
+    assert "A-ONLY" not in str(calls) and "B-ONLY" not in str(calls)
     assert summary[a.id]["turn_count"] == summary[b.id]["turn_count"] == 3
     # neither is verified, and neither leaks a member
     assert all(c["member"] is None and c["stage"] == "unverified" for c in calls)

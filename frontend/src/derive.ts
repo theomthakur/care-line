@@ -26,6 +26,8 @@ export type BookingPhase = "none" | "proposed" | "awaiting_yes" | "confirmed" | 
 
 export function bookingPhase(s: CallState): BookingPhase {
   if (s.appointment) return "confirmed";
+  // An ended call with no appointment row did not book. A leftover draft is not a pending booking.
+  if (s.status === "finalized") return "none";
   if (hasConflict(s)) return "conflict";
   if (s.draft?.status === "armed") return "awaiting_yes";
   if (s.draft && (s.draft.status === "slot" || s.draft.status === "preview")) return "proposed";
@@ -92,19 +94,82 @@ export function takeTarget(s: CallState): { slot_id: string; text: string } | nu
 
 // ---- conversation list ------------------------------------------------------------------------
 
-export const STAGE_VIEW: Record<CallStage, { label: string; tone: "slate" | "amber" | "red" | "blue" | "teal" | "green" }> = {
-  unverified: { label: "Verifying", tone: "amber" },
-  locked: { label: "Locked", tone: "red" },
-  verified: { label: "Verified", tone: "blue" },
-  searching: { label: "Finding doctors", tone: "blue" },
-  offering: { label: "Choosing a time", tone: "blue" },
-  readback: { label: "Read-back", tone: "teal" },
-  awaiting_yes: { label: "Awaiting yes", tone: "amber" },
-  conflict: { label: "Slot taken", tone: "red" },
-  booked: { label: "Booked", tone: "green" },
-  followup: { label: "Follow-up", tone: "blue" },
-  ended: { label: "Ended", tone: "slate" },
+type Tone6 = "slate" | "amber" | "red" | "blue" | "teal" | "green";
+
+/** Plain-language status for each workflow stage. No backend vocabulary reaches the operator. */
+export const STAGE_VIEW: Record<CallStage, { label: string; tone: Tone6 }> = {
+  unverified: { label: "Active call", tone: "blue" },
+  locked: { label: "Needs follow-up", tone: "red" },
+  verified: { label: "Member verified", tone: "teal" },
+  searching: { label: "Looking for provider", tone: "blue" },
+  offering: { label: "Looking for provider", tone: "blue" },
+  readback: { label: "Awaiting confirmation", tone: "amber" },
+  awaiting_yes: { label: "Awaiting confirmation", tone: "amber" },
+  conflict: { label: "Time no longer available", tone: "red" },
+  booked: { label: "Appointment booked", tone: "green" },
+  followup: { label: "Needs follow-up", tone: "amber" },
+  ended: { label: "Call completed", tone: "slate" },
 };
+
+type StatusInput = Pick<CallSummary, "status" | "stage" | "outcome" | "open_tasks">;
+
+/** The one status label shown for a call everywhere (list, overview, header). */
+export function statusView(c: StatusInput): { label: string; tone: Tone6 } {
+  if (c.stage === "followup" && c.open_tasks === 0) return { label: "Follow-up completed", tone: "green" };
+  if (c.status === "finalized" && c.stage === "ended") {
+    if (c.outcome === "unknown") return { label: "Needs review", tone: "red" };
+    if (c.outcome === "not_completed") return { label: "Ended without booking", tone: "slate" };
+  }
+  return STAGE_VIEW[c.stage];
+}
+
+/** A person has to do something: an open follow-up, a locked caller, or an unverifiable booking. */
+export function needsAttention(c: StatusInput): boolean {
+  return c.open_tasks > 0 || c.stage === "locked" || c.stage === "conflict" || (c.status === "finalized" && c.outcome === "unknown");
+}
+
+export function attentionReason(c: StatusInput): string {
+  if (c.open_tasks > 0) return `${c.open_tasks} open follow-up${c.open_tasks === 1 ? "" : "s"}`;
+  if (c.stage === "locked") return "Caller could not be verified";
+  if (c.stage === "conflict") return "Chosen time was taken";
+  return "Booking result could not be confirmed";
+}
+
+/** What the AI is doing now (live call) or what happened (finished call). Read from backend state only. */
+export function narration(s: CallState): string {
+  if (s.status === "finalized") return s.summary?.text ?? "The call has ended.";
+  const phase = bookingPhase(s);
+  if (s.appointment) return "The appointment is booked. The agent is wrapping up the call.";
+  if (!s.verified) {
+    return s.tasks.some((t) => t.packet.category === "verification_failed")
+      ? "The caller could not be verified. A follow-up request was saved."
+      : "Asking the caller to confirm who they are.";
+  }
+  if (phase === "awaiting_yes") return "The agent read the appointment back and is waiting for the caller to say yes.";
+  if (phase === "proposed") return "The caller chose a time. The agent is preparing the read-back.";
+  if (phase === "conflict") return "The chosen time was taken. The agent is offering new times.";
+  if (s.offered_slots.length || s.selected) return "Offering open times and helping the caller choose.";
+  if (s.providers.length || s.excluded.length) return "Reviewing in-network doctors with the caller.";
+  return "Member verified. Listening for what they need.";
+}
+
+export interface ActionNeeded { title: string; detail: string }
+
+/** Whether a human has to act. Derived from saved follow-ups and the stored outcome only. */
+export function actionNeeded(s: CallState): ActionNeeded | null {
+  const open = s.tasks.filter((t) => t.status === "open");
+  if (open.length) {
+    const t = open[0];
+    return {
+      title: open.length === 1 ? "A team member needs to follow up" : `${open.length} follow-ups need a team member`,
+      detail: `${t.packet.reference}: ${t.packet.suggested_next_action}`,
+    };
+  }
+  if (s.summary?.outcome === "unknown") {
+    return { title: "Check the schedule", detail: "The booking result could not be confirmed. Check the schedule before telling the caller anything." };
+  }
+  return null;
+}
 
 /** Fixture mode only: derive a list row from a saved state. Live mode always uses GET /calls. */
 export function summaryFromState(s: CallState): CallSummary {
@@ -138,6 +203,5 @@ export function summaryFromState(s: CallState): CallSummary {
     open_tasks: s.tasks.filter((t) => t.status === "open").length,
     outcome: s.summary?.outcome ?? null,
     confirmation: s.appointment?.confirmation ?? null,
-    last_turn: last ? { role: last.role, text: last.text } : null,
   };
 }

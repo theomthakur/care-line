@@ -1,41 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { Activity, AudioLines, CalendarClock, ChevronLeft, ChevronRight, Code2, Headphones, LayoutDashboard, Maximize2, Minimize2, Moon, Presentation, ShieldCheck, Stethoscope, Sun, Workflow } from 'lucide-react';
-import type { CallState } from './types';
-import { Logo, LogoMark } from './Logo';
-import type { CallListItem } from './api';
-
-export type Section = 'workspace' | 'history' | 'providers' | 'architecture' | 'presentation' | 'developer';
-type Props = { section: Section; setSection: (s: Section) => void; children: ReactNode; developer: boolean; setDeveloper: (x: boolean) => void };
-
-export function ProductShell({section,setSection,children,developer,setDeveloper}: Props) {
- const [collapsed,setCollapsed] = useState(() => localStorage.getItem('careline-sidebar') === 'closed');
- const [dark,setDark] = useState(() => localStorage.getItem('careline-theme') === 'dark');
- useEffect(() => {document.documentElement.dataset.theme = dark ? 'dark' : 'light';localStorage.setItem('careline-theme',dark?'dark':'light');},[dark]);
- const collapse=()=>setCollapsed(x=>{localStorage.setItem('careline-sidebar',x?'open':'closed');return !x});
- const link=(s:Section,label:string,icon:ReactNode)=><button className={`shell-link ${section===s?'selected':''}`} onClick={()=>setSection(s)} title={label} aria-label={label} aria-current={section===s?'page':undefined}>{icon}<span>{label}</span></button>;
- return <div className={`product-shell ${collapsed?'shell-collapsed':''}`}>
-  <aside className="shell-nav"><div className="shell-brand"><Logo size={38}/></div>
-   <div className="shell-section">WORKSPACE</div>
-   {link('workspace','Live workspace',<LayoutDashboard size={18}/>)}
-   {link('history','Call history',<CalendarClock size={18}/>)}
-   {link('providers','Providers',<Stethoscope size={18}/>)}
-   <div className="shell-section">EXPLORE</div>
-   {link('architecture','System design',<Workflow size={18}/>)}
-   {link('presentation','Presentation',<Presentation size={18}/>)}
-   {developer && link('developer','Developer view',<Code2 size={18}/>)}
-   <div className="shell-push"/><div className="shell-bottom">
-   <button className="shell-link" onClick={()=>setDeveloper(!developer)} title="Developer view" aria-pressed={developer}><Code2 size={18}/><span>Developer {developer?'on':'off'}</span></button>
-   <button className="shell-link" onClick={()=>setDark(!dark)} title={dark?'Use light mode':'Use dark mode'}>{dark?<Sun size={18}/>:<Moon size={18}/>}<span>{dark?'Light mode':'Dark mode'}</span></button>
-   <button className="shell-link" onClick={collapse} aria-label={collapsed?'Expand sidebar':'Collapse sidebar'}>{collapsed?<ChevronRight size={18}/>:<ChevronLeft size={18}/>}<span>Collapse sidebar</span></button>
-   <div className="operator"><span className="operator-avatar">OP</span><span><b>Care team</b><small>Member services</small></span></div></div>
-  </aside><div className="product-main">{children}</div></div>;
-}
-
-export function History({calls,loading,error,onSelect}:{calls:CallListItem[];loading:boolean;error:string;onSelect:(id:string)=>void}) {
- return <div className="page-wrap"><div className="page-head"><div><div className="page-kicker">YOUR WORKSPACE</div><h1>Call history</h1><p>Review previous calls, their conversations and outcomes.</p></div><span className="page-pill">Synthetic demo records</span></div>
- <div className="history-card"><div className="section-header"><div><h2>Recent calls</h2><p>Saved in the local demo database until you reset it.</p></div><span>{calls.length} shown</span></div>
- {error?<div className="history-empty" role="alert">Could not load calls. {error}</div>:loading?<div className="history-empty">Loading calls…</div>:calls.length===0?<div className="history-empty"><Headphones size={26}/><b>No calls yet</b><span>Completed and active demo calls will appear here.</span></div>:<div className="history-list">{calls.map(c=><button className="history-row" key={c.call_id} onClick={()=>onSelect(c.call_id)}><span className="history-icon"><AudioLines size={18}/></span><span className="history-name"><b>{c.member || 'Unverified caller'}</b><small>{new Date(c.created_at).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'})}</small></span><span className={`history-status ${c.status==='live'?'live':''}`}>{c.status==='live'?'Live':c.booked?'Booked':'Ended'}</span><ChevronRight size={17}/></button>)}</div>}</div></div>;
-}
+import { useEffect, useState } from 'react';
+import { Activity, ChevronRight, Maximize2, Minimize2, Presentation, ShieldCheck, Workflow } from 'lucide-react';
+import type { CallState } from '../types';
+import { LogoMark } from '../Logo';
 
 const steps=[['01','Incoming call','LiveKit connects the caller to the voice agent.'],['02','Listen & understand','Speech recognition transcribes; the model selects a supported action.'],['03','Verify & find care','The booking service checks the demo member, plan and provider schedule.'],['04','Confirm & record','A read-back and clear confirmation precede a simulated booking.'],['05','Support handoff','The workspace shows the conversation, result and follow-up.']];
 export function Architecture() {return <div className="page-wrap"><div className="page-head"><div><div className="page-kicker">HOW IT WORKS</div><h1>From call to care</h1><p>One clear path from a member’s question to an operator-ready outcome.</p></div><span className="page-pill">Demo architecture</span></div><div className="architecture-card"><div className="arch-title"><div className="arch-icon"><Workflow size={23}/></div><div><h2>CareLine system flow</h2><p>Built for a focused, reliable phone conversation.</p></div></div><div className="arch-grid">{steps.map(([n,title,desc])=><div className="arch-step" key={n}><span>{n}</span><b>{title}</b><p>{desc}</p></div>)}</div><div className="arch-tech"><b>Built with</b><span>LiveKit</span><span>Python</span><span>FastAPI</span><span>SQLite</span><span>React</span><span>TypeScript</span></div><div className="arch-foot"><ShieldCheck size={18}/><span>Verification, provider eligibility and confirmation are checked by the backend. Provider data and appointments are simulated.</span></div></div></div>}

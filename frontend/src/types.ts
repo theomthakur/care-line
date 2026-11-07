@@ -121,6 +121,24 @@ export interface Summary {
   reason: string;
   text: string;
   confirmation: string | null;
+  /** "dropped" when the backend closed a call the voice agent never finalized. */
+  ended_reason?: string;
+}
+
+/** Facts for the post-call summary, re-read from saved rows by GET /calls/{id}/summary. */
+export interface SummaryDetails {
+  verification: "verified" | "failed" | "locked" | "not_attempted";
+  provider: { name: string; phone: string | null } | null;
+  appointment: { confirmation: string; when: string; doctor: string; phone: string | null } | null;
+  problems: string[];
+  follow_ups: { reference: string; status: "open" | "completed"; category: string | null; next_action: string }[];
+  next_action: string;
+}
+
+export interface CallSummaryDoc {
+  status: CallStatus;
+  summary: Summary | null;
+  details: SummaryDetails;
 }
 
 export interface CallState {
@@ -178,5 +196,4 @@ export interface CallSummary {
   open_tasks: number;
   outcome: SummaryOutcome | null;
   confirmation: string | null;
-  last_turn: { role: TurnRole; text: string } | null;
 }
