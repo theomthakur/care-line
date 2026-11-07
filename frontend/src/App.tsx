@@ -4,6 +4,7 @@ import { getCallState, getCallSummary, getCalls } from "./api";
 import { Providers } from "./Providers";
 import { Architecture, Deck, Developer } from "./pages/Explore";
 import { Overview } from "./pages/Overview";
+import { Landing } from "./pages/Landing";
 import { FollowUps } from "./pages/FollowUps";
 import { ago, shortClock } from "./format";
 import { FIXTURE_STAGES } from "./fixtures";
@@ -162,6 +163,7 @@ function readDeveloper(): boolean {
 export function App() {
   const theme = useTheme();
   const { route, go } = useRoute(!isFixture);
+  const [showLanding, setShowLanding] = useState(import.meta.env.VITE_FIXTURE_ONLY === "1");
   const [stage, setStage] = useState("booked");
   const fixtureStage = useMemo(() => FIXTURE_STAGES.find((f) => f.key === stage) ?? FIXTURE_STAGES[0], [stage]);
   const [tab, setTab] = useState<Tab>("call");
@@ -295,6 +297,8 @@ export function App() {
         </div>
       </>
     );
+
+  if (showLanding) return <Landing onOpen={() => setShowLanding(false)} theme={theme.mode} onTheme={theme.setMode} />;
 
   return (
     <AppShell

@@ -1,6 +1,8 @@
 # CareLine
 
-CareLine is a voice-assisted appointment demo. A caller can verify their identity, find a provider, hear available times and confirm a booking. The operator workspace shows conversations, follow-ups and call summaries.
+CareLine is a voice-assisted member support prototype built for the Take2 voice agent hackathon. It helps a caller find an eligible primary care provider and book an appointment by phone. A companion workspace gives support staff the conversation and context needed to follow up.
+
+Finding care can involve long hold times, navigating provider directories and repeating information. CareLine explores a more direct path: a voice agent talks with the member, calls a booking service for verified information and keeps the operator informed.
 
 **[Open the hosted UI preview](https://careline-member-guide.vercel.app/)**
 
@@ -8,7 +10,22 @@ CareLine is a voice-assisted appointment demo. A caller can verify their identit
 
 ## How it works
 
-Phone → LiveKit voice agent → booking API → operator workspace. The API checks confirmations and reserves slots atomically; competing callers cannot book the same slot.
+1. A member calls the configured phone number and speaks with the LiveKit voice agent.
+2. The booking API checks synthetic member details, searches eligible providers and returns open slots.
+3. The agent reads the chosen slot back. The backend requires a fresh confirmation before booking.
+4. The appointment is saved atomically: if callers compete for one slot, only one booking succeeds and the others must choose another time.
+5. The workspace displays call status, conversation, appointment and follow-up information for an operator.
+
+The voice layer uses **LiveKit and Python**; the booking service uses **FastAPI and SQLite**; the workspace uses **React and TypeScript**. The hosted Vercel preview uses saved examples and is separate from the live phone service.
+
+## Workspace
+
+- **Overview and conversations:** find calls and inspect their progress and transcript.
+- **Follow-ups and providers:** see handoff context and provider information.
+- **Explore:** open the system design and presentation.
+- **Appearance:** switch between light and dark using the button at the top; Settings also includes a system theme and developer view.
+
+The live agent, backend and workspace are separate processes. The Vercel preview does not connect to a phone number or create bookings.
 
 ## Run locally
 

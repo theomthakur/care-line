@@ -235,7 +235,7 @@ export function AppShell({
           </button>
           <h1 className="topbar-title">{title}</h1>
           <span className="topbar-spacer" />
-          <div className="topbar-right">{right}</div>
+          <button type="button" className="btn theme-toggle" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => onTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={16}/> : <Moon size={16}/>} <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span></button><div className="topbar-right">{right}</div>
         </header>
         <div className="appbody">{children}</div>
       </div>

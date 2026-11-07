@@ -176,13 +176,13 @@ describe("C. appearance", () => {
     await act(async () => within(screen.getByRole("radiogroup", { name: "Theme" })).getByRole("radio", { name }).click());
   };
 
-  it("defaults to the system theme and offers light, dark and system", async () => {
+  it("defaults to light and offers light, dark and system", async () => {
     await open();
     expect(document.documentElement.dataset.theme).toBe("light");
-    expect(document.documentElement.dataset.themeMode).toBe("system");
+    expect(document.documentElement.dataset.themeMode).toBe("light");
     await openSettings();
     expect(within(screen.getByRole("radiogroup", { name: "Theme" })).getAllByRole("radio").map((r) => r.textContent?.trim())).toEqual(["Light", "Dark", "System"]);
-    expect(screen.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("applies and persists an explicit choice", async () => {
@@ -205,9 +205,10 @@ describe("C. appearance", () => {
     const setSystemDark = mockMatchMedia(false);
     await open();
     expect(document.documentElement.dataset.theme).toBe("light");
+    await openSettings();
+    await choose("System");
     await act(async () => setSystemDark(true));
     expect(document.documentElement.dataset.theme).toBe("dark");
-    await openSettings();
     await choose("Light"); // an explicit choice stops following the system
     await act(async () => setSystemDark(true));
     expect(document.documentElement.dataset.theme).toBe("light");
