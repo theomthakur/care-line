@@ -57,14 +57,28 @@ function Availability({ days }: { days: DirectoryProvider["days"] }) {
   );
 }
 
-export function Providers() {
-  const [items, setItems] = useState<DirectoryProvider[] | null>(null);
+const SAMPLE_PROVIDERS: DirectoryProvider[] = [
+  {id:"P1", name:"Dr. Lena Park", specialty:"primary care", zip:"10023", phone:"212-555-0101", accepting_new_patients:false, networks:["METRO"], open_slots:3},
+  {id:"P2", name:"Dr. Omar Haddad", specialty:"primary care", zip:"10023", phone:"212-555-0102", accepting_new_patients:true, networks:["METRO", "VALUE"], open_slots:8},
+  {id:"P3", name:"Dr. Grace Liu", specialty:"primary care", zip:"10025", phone:"212-555-0103", accepting_new_patients:true, networks:["VALUE"], open_slots:5},
+  {id:"P4", name:"Westside Family Medicine", specialty:"primary care", zip:"10024", phone:"212-555-0104", accepting_new_patients:true, networks:["METRO"], open_slots:6},
+].map((p) => {
+  const days = Array.from({length:5}, (_,i) => {
+    const date = new Date(); date.setUTCDate(date.getUTCDate()+i+1);
+    return {date:date.toISOString().slice(0,10),open:Math.max(0,p.open_slots-i),total:10};
+  });
+  return {...p,days,next_open:days.slice(0,2).map((d) => `${d.date}T15:00:00Z`)};
+});
+
+export function Providers({fixture = false}: {fixture?: boolean}) {
+  const [items, setItems] = useState<DirectoryProvider[] | null>(fixture ? SAMPLE_PROVIDERS : null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState("all");
   const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (fixture) return;
     const ctl = new AbortController();
     const load = () =>
       getProviderDirectory(ctl.signal)
@@ -81,7 +95,7 @@ export function Providers() {
       ctl.abort();
       clearInterval(id);
     };
-  }, []);
+  }, [fixture]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -98,7 +112,7 @@ export function Providers() {
         <div>
           <div className="page-kicker">PROVIDER DIRECTORY</div>
           <h1>Providers and availability</h1>
-          <p>Every doctor the assistant can offer, with live open times for the next two weeks.</p>
+          <p>{fixture ? "Fictional provider schedules for exploring the preview." : "Every doctor the assistant can offer, with live open times for the next two weeks."}</p>
         </div>
         <span className="page-pill">{items ? `${items.length} providers` : "Loading"}</span>
       </div>

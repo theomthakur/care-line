@@ -7,7 +7,7 @@ import { Overview } from "./pages/Overview";
 import { Landing } from "./pages/Landing";
 import { FollowUps } from "./pages/FollowUps";
 import { ago, shortClock } from "./format";
-import { FIXTURE_STAGES } from "./fixtures";
+import { DEMO_CASES, DEMO_TASKS, FIXTURE_STAGES } from "./fixtures";
 import { usePoll, type Connection } from "./usePolling";
 import { needsAttention, summaryFromState } from "./derive";
 import { useRoute, type View } from "./route";
@@ -171,7 +171,7 @@ export function App() {
 
   const view: View = route.view;
   const inConv = view === "conversations";
-  const selectedId = isFixture ? null : route.call;
+  const selectedId = route.call;
 
   const setDeveloper = useCallback(
     (on: boolean) => {
@@ -193,8 +193,9 @@ export function App() {
   const list = usePoll(getCalls, "calls", 1000, !isFixture);
   const detail = usePoll((signal) => getCallState(selectedId!, signal), inConv && selectedId ? `call:${selectedId}` : null, 1000, !isFixture);
 
-  const calls = isFixture ? (fixtureStage.state ? [summaryFromState(fixtureStage.state)] : []) : list.data;
-  const effectiveId = isFixture ? (fixtureStage.state?.call_id ?? null) : selectedId;
+  const sampleStates = useMemo(() => DEMO_CASES.flatMap((c) => c.call_id !== "demo_booked" ? [c] : fixtureStage.state ? [{ ...fixtureStage.state, call_id: "demo_booked" }] : []), [fixtureStage]);
+  const calls = isFixture ? sampleStates.map(summaryFromState) : list.data;
+  const effectiveId = isFixture ? (selectedId ?? "demo_booked") : selectedId;
 
   const select = useCallback(
     (id: string) => {
@@ -211,7 +212,7 @@ export function App() {
     select((list.data.find((c) => c.status === "live") ?? list.data[0]).call_id);
   }, [inConv, selectedId, list.data, select]);
 
-  const state = isFixture ? fixtureStage.state : detail.data ?? null;
+  const state = isFixture ? sampleStates.find((c) => c.call_id === effectiveId) ?? null : detail.data ?? null;
   // The post-call facts (verification, provider, problems, follow-ups) for a finished call.
   const sumDoc = usePoll((signal) => getCallSummary(state!.call_id, signal), !isFixture && inConv && state?.status === "finalized" ? `summary:${state.call_id}` : null, 2000, true);
   const gone = !isFixture && inConv && selectedId !== null && detail.data === null;
@@ -250,9 +251,9 @@ export function App() {
     view === "overview" ? (
       <Overview calls={calls} loading={list.connection === "loading"} onOpen={select} onNavigate={(v) => go({ view: v })} />
     ) : view === "followups" ? (
-      <FollowUps calls={calls} onOpenCall={select} canAct={canAct} onChanged={refresh} />
+      <FollowUps calls={calls} onOpenCall={select} canAct={canAct} onChanged={refresh} sampleTasks={isFixture ? DEMO_TASKS : undefined} />
     ) : view === "providers" ? (
-      <Providers />
+      <Providers fixture={isFixture} />
     ) : view === "architecture" ? (
       <Architecture />
     ) : view === "presentation" ? (
@@ -264,7 +265,7 @@ export function App() {
         {isFixture && (
           <div className="fixture-bar" role="region" aria-label="Demo preview">
             <div className="fixture-copy"><span className="fixture-icon"><FlaskConical size={17}/></span><div><strong>Explore a sample call</strong><p>Showing a saved example. Changes and bookings are disabled.</p></div></div>
-            <label className="fixture-selector"><span>CALL STAGE</span><select value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Choose sample call stage">{FIXTURE_STAGES.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
+            <label className="fixture-selector"><span>MAYA’S CALL STAGE</span><select value={stage} onChange={(e) => { setStage(e.target.value); go({ view: "conversations", call: "demo_booked" }); }} aria-label="Choose sample call stage">{FIXTURE_STAGES.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
           </div>
         )}
 

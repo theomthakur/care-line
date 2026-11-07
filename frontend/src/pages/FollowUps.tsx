@@ -2,19 +2,20 @@ import { useMemo, useState } from "react";
 import { ArrowRight, CheckCheck, HandHeart } from "lucide-react";
 import { getTasks } from "../api";
 import { usePoll } from "../usePolling";
-import type { CallSummary } from "../types";
+import type { CallSummary, Task } from "../types";
 import { Packet } from "../components/OutcomePanels";
 import { Chip } from "../components/ui";
 
 type F = "open" | "completed" | "all";
 
 /** Every follow-up the AI saved for the team, across all calls. Completing one marks only that task. */
-export function FollowUps({ calls, onOpenCall, canAct, onChanged }: { calls: CallSummary[] | undefined; onOpenCall: (id: string) => void; canAct: boolean; onChanged: () => void }) {
-  const tasks = usePoll((signal) => getTasks(undefined, signal), "tasks", 2000, true);
+export function FollowUps({ calls, onOpenCall, canAct, onChanged, sampleTasks }: { calls: CallSummary[] | undefined; onOpenCall: (id: string) => void; canAct: boolean; onChanged: () => void; sampleTasks?: Task[] }) {
+  const tasks = usePoll((signal) => getTasks(undefined, signal), "tasks", 2000, !sampleTasks);
   const [filter, setFilter] = useState<F>("open");
   const names = useMemo(() => new Map((calls ?? []).map((c) => [c.call_id, c.member?.name ?? null])), [calls]);
 
-  const all = tasks.data ?? [];
+  const available = sampleTasks ?? tasks.data;
+  const all = available ?? [];
   const open = all.filter((t) => t.status === "open").length;
   const shown = all
     .filter((t) => filter === "all" || t.status === filter)
@@ -41,7 +42,7 @@ export function FollowUps({ calls, onOpenCall, canAct, onChanged }: { calls: Cal
         </div>
       </div>
 
-      {tasks.data === undefined ? (
+      {available === undefined ? (
         tasks.error ? <p className="ov-empty" role="alert">The follow-up list could not be loaded. {tasks.error.message}</p> : <div className="skel" style={{ height: 120, borderRadius: 14 }} />
       ) : shown.length === 0 ? (
         <div className="ov-block card ov-none">
@@ -77,7 +78,7 @@ export function FollowUps({ calls, onOpenCall, canAct, onChanged }: { calls: Cal
           })}
         </ul>
       )}
-      {tasks.data !== undefined && open === 0 && all.length > 0 && filter === "open" && (
+      {available !== undefined && open === 0 && all.length > 0 && filter === "open" && (
         <p className="fu-clear"><CheckCheck size={14} /> All follow-ups are complete.</p>
       )}
     </div>
