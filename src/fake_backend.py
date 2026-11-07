@@ -2,7 +2,7 @@
 
 Set USE_FAKE_BACKEND=1. Turn it OFF for the 5:30 checkpoint: the real backend is
 Aneesh's and Siddhant's. This file also works as an executable copy of the booking
-rules in docs/MEMBERGUIDE-FINAL-PLAN.md section 8, so a disagreement shows up here
+rules in contracts/api.md, so a disagreement shows up here
 first. Synthetic data only. Every visit is 30 minutes.
 """
 

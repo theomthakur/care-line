@@ -2,7 +2,7 @@
 
 The model talks, code decides. The model has exactly six tools. All logic lives in
 flow.py (testable without a call), all rules and data live in the backend, and the
-emergency screen lives in safety.py. Spec: docs/MEMBERGUIDE-FINAL-PLAN.md.
+emergency screen lives in safety.py. Spec: contracts/api.md.
 
 Set in .env.local: AGENT_PROFILE=mine, AGENT_NAME=memberguide, USE_FAKE_BACKEND=1
 until the real backend is merged (turn it OFF for the 5:30 checkpoint).

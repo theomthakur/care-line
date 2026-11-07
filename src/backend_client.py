@@ -7,7 +7,7 @@ Every response is a dict with "ok": bool. A failed rule comes back as
 {"ok": False, "error": CODE, "speak": "..."}. Only an unreachable or broken
 backend raises BackendUnavailableError.
 
-Route shapes follow docs/MEMBERGUIDE-FINAL-PLAN.md section 8. The exact field names
+Route shapes follow contracts/api.md. The exact field names
 are agreed in contracts/ at 4:00. If a name changes there, change it here only.
 """
 

@@ -1,9 +1,7 @@
 # MemberGuide shared API — proposed contract
 
-Draft for Om, Aneesh and Siddhant to agree before implementation. Derived from
-[the final plan](../docs/MEMBERGUIDE-FINAL-PLAN.md), especially sections 8, 9,
-16 and the review overrides. This defines interfaces and storage, not a running
-backend. All people, plans, schedules and bookings here are synthetic.
+Shared API design notes for the voice agent, booking service and workspace.
+The running implementation and tests are the source of truth for behavior. All people, plans, schedules and bookings here are synthetic.
 
 First build: one verified member per call, primary care, new patients, in-person
 visits of exactly 30 minutes, against a simulated schedule. Specialists,

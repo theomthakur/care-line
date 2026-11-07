@@ -5,7 +5,7 @@ Each method returns the text the model sees, or None when nothing more should be
 success line comes from the backend's `speak`, so "booked" is only ever said after
 the backend says so.
 
-Spec: docs/MEMBERGUIDE-FINAL-PLAN.md sections 7 and 8.
+Spec: contracts/api.md.
 """
 
 from __future__ import annotations

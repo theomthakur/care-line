@@ -6,7 +6,7 @@ clearly negated ("I don't have chest pain") or clearly in the past ("I had chest
 pain last year"). Someone else's problem with no sign it is happening now gets one
 question instead of a 911 line.
 
-Spec: docs/MEMBERGUIDE-FINAL-PLAN.md, section 7 ("Safety screen").
+Spec: contracts/api.md.
 """
 
 from __future__ import annotations
