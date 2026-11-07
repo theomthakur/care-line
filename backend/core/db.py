@@ -7,6 +7,7 @@ Never share a sqlite connection across requests or await inside either context.
 import os
 import sqlite3
 import threading
+import time
 from collections import deque
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -126,7 +127,20 @@ class Database:
         with self._write_barrier():
             conn = self.connect()
             try:
-                conn.execute("PRAGMA journal_mode = WAL")
+                # SQLite may report BUSY immediately when concurrent connections
+                # switch journal modes, even when busy_timeout is set.
+                deadline = time.monotonic() + self.timeout
+                while True:
+                    try:
+                        conn.execute("PRAGMA journal_mode = WAL")
+                        break
+                    except sqlite3.OperationalError as exc:
+                        if (
+                            "locked" not in str(exc).lower()
+                            or time.monotonic() >= deadline
+                        ):
+                            raise
+                        time.sleep(0.025)
                 # Required for SQLite's table-rebuild migration with circular FKs.
                 # This connection is private and initialization holds the writer lock.
                 conn.execute("PRAGMA foreign_keys = OFF")

@@ -640,3 +640,41 @@ details.disclosure:not([open]) > summary.card-head { border-bottom: 0; }
 .conv-tabs button { height:32px; justify-content:space-between; border-radius:8px; padding:0 10px; }
 .conv-tabs button .num { min-width:19px; text-align:center; opacity:.8; }
 @media(max-width:600px) { .fixture-bar { align-items:stretch; flex-direction:column; } .fixture-selector { width:100%; } }
+/* Operator workspace visual refresh */
+.appshell { --nav-w:252px; }
+.nav { padding:22px 14px 16px; }
+.nav-top { padding:0 4px 24px; }
+.nav-list { gap:5px; }
+.nav-link { min-height:44px; border-radius:10px; font-size:13px; }
+.nav-bottom { gap:5px; }
+.topbar { height:68px; padding:0 28px; }
+.topbar-title { font-size:16px; letter-spacing:-.025em; }
+.page-wrap { padding:32px; }
+.page-head h1,.page-title { font-size:28px; letter-spacing:-.04em; }
+.page-head p { line-height:1.65; }
+.card,.architecture-card,.ov-block { border-radius:16px; box-shadow:0 5px 18px rgba(18,49,61,.04); }
+.kpi { padding:22px; border-radius:16px; }
+.sidebar { background:var(--surface); }
+.sidebar-head { padding:20px 18px 15px; }
+.sidebar-head h2 { font-size:15px; }
+.conv-search { min-height:42px; margin:0 16px 12px; border-radius:11px; }
+.conv-tabs { padding:0 16px 16px; gap:7px; }
+.conv-tabs button { min-height:36px; border-radius:10px; }
+.conv-scroll { padding:0 14px 18px; }
+.conv { padding:15px; border-radius:12px; }
+.case-head { padding:20px 24px; }
+.case-body { gap:16px; padding:20px 24px 24px; }
+.fixture-bar { margin:16px 20px 4px; border:1px solid var(--line); border-radius:13px; box-shadow:var(--shadow-xs); }
+.fixture-icon { width:42px; height:42px; border-radius:12px; }
+.fixture-selector select { min-height:38px; }
+.design-tech { display:flex; align-items:center; gap:7px; }
+.design-tech img { width:17px; height:17px; object-fit:contain; }
+.architecture-card { padding:30px; }
+.design-node { background:var(--surface); padding:24px; box-shadow:var(--shadow-xs); }
+.design-node h3 { margin-top:14px; }
+[data-theme="dark"] .card,[data-theme="dark"] .architecture-card { box-shadow:none; }
+@media(max-width:700px) { .page-wrap { padding:20px; } .fixture-bar { margin:12px; } .case-body { padding:14px; } }
+.landing .logo-text strong { color:var(--ink-950); }
+.landing .logo-text small { color:var(--ink-500); }
+.design-lane + .design-lane { position:relative; }
+.design-lane + .design-lane::before { content:'↓'; position:absolute; top:-13px; left:50%; width:26px; height:26px; display:grid; place-items:center; border:1px solid var(--line); border-radius:50%; color:var(--teal-700); background:var(--surface); }
