@@ -262,14 +262,9 @@ export function App() {
     ) : (
       <>
         {isFixture && (
-          <div className="fixture-bar" role="region" aria-label="Fixture mode">
-            <b>Fixture mode · not a live call</b>
-            <span style={{ color: "var(--ink-300)" }}>Showing a saved example from contracts/examples. Actions are disabled.</span>
-            <div className="stages">
-              {FIXTURE_STAGES.map((f) => (
-                <button key={f.key} aria-pressed={stage === f.key} onClick={() => setStage(f.key)}>{f.label}</button>
-              ))}
-            </div>
+          <div className="fixture-bar" role="region" aria-label="Demo preview">
+            <div className="fixture-copy"><span className="fixture-icon"><FlaskConical size={17}/></span><div><strong>Explore a sample call</strong><p>Showing a saved example. Changes and bookings are disabled.</p></div></div>
+            <label className="fixture-selector"><span>CALL STAGE</span><select value={stage} onChange={(e) => setStage(e.target.value)} aria-label="Choose sample call stage">{FIXTURE_STAGES.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
           </div>
         )}
 

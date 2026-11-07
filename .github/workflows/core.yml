@@ -23,7 +23,8 @@ jobs:
       - run: uv run ruff check backend tests/core tests/ops tests/agent tests/integration tests/security_helpers.py src/backend_client.py src/connection_security.py src/my_agent.py src/flow.py scripts
 
   identity-scenario:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Opt in only after configuring an isolated synthetic LiveKit test project.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.LIVEKIT_IDENTITY_TEST_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

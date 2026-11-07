@@ -23,7 +23,7 @@ The voice layer uses **LiveKit and Python**; the booking service uses **FastAPI 
 - **Overview and conversations:** find calls and inspect their progress and transcript.
 - **Follow-ups and providers:** see handoff context and provider information.
 - **Explore:** open the system design and presentation.
-- **Appearance:** switch between light and dark using the button at the top; Settings also includes a system theme and developer view.
+- **Appearance:** switch between light and dark from the sidebar; Settings also offers a system theme. Developer view is available directly in the sidebar.
 
 The live agent, backend and workspace are separate processes. The Vercel preview does not connect to a phone number or create bookings.
 
@@ -78,5 +78,7 @@ cd frontend && npm test && npm run build
 ```
 
 The Vercel build is a **read-only synthetic UI preview**. A live phone experience also needs a running backend and LiveKit agent; Vercel alone does not provide those services.
+
+The optional live identity CI scenario runs only when `LIVEKIT_IDENTITY_TEST_ENABLED` is set to `true` and dedicated synthetic LiveKit test credentials are configured. A skipped scenario has not been verified.
 
 See [booking security](docs/BOOKING-SECURITY.md) and [API contracts](contracts/README.md) for implementation details.

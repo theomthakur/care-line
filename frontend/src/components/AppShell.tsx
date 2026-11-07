@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronsLeft, ChevronsRight, HandHeart, LayoutDashboard, MessagesSquare, Menu, Monitor, Moon, Presentation, Settings, Stethoscope, Sun, Workflow, X } from "lucide-react";
+import { ChevronDown, Code2, ChevronsLeft, ChevronsRight, HandHeart, LayoutDashboard, MessagesSquare, Menu, Monitor, Moon, Presentation, Settings, Stethoscope, Sun, Workflow, X } from "lucide-react";
 import { Logo, LogoMark } from "../Logo";
 import { buildHash, type View } from "../route";
 import type { ThemeMode } from "../theme";
@@ -127,6 +127,7 @@ export function AppShell({
           <a className="nav-brand" href={buildHash({ view: "overview", call: null })} onClick={(e) => { e.preventDefault(); go("overview"); }} aria-label="Care Line, go to Overview">
             {collapsed ? <LogoMark size={34} /> : <Logo size={36} />}
           </a>
+          <button type="button" className="nav-collapse nav-collapse-top" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-pressed={collapsed} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleCollapsed}>{collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}</button>
           <button type="button" className="nav-close" onClick={closeDrawer} aria-label="Close navigation">
             <X size={18} />
           </button>
@@ -183,16 +184,11 @@ export function AppShell({
             <Settings size={18} />
             <span className="nav-text">Settings</span>
           </button>
-          <button
-            type="button"
-            className="nav-link nav-collapse"
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-pressed={collapsed}
-            data-tip={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            onClick={toggleCollapsed}
-          >
-            {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
-            <span className="nav-text">Collapse sidebar</span>
+          <button type="button" className="nav-link" data-tip={theme === "dark" ? "Light mode" : "Dark mode"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => onTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}<span className="nav-text">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          </button>
+          <button type="button" className={`nav-link ${view === "developer" ? "selected" : ""}`} data-tip="Developer view" onClick={() => { onDeveloper(true); go("developer"); }}>
+            <Code2 size={18}/><span className="nav-text">Developer view</span>
           </button>
           <p className="nav-foot">Synthetic demo data</p>
         </div>
@@ -235,7 +231,7 @@ export function AppShell({
           </button>
           <h1 className="topbar-title">{title}</h1>
           <span className="topbar-spacer" />
-          <button type="button" className="btn theme-toggle" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => onTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun size={16}/> : <Moon size={16}/>} <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span></button><div className="topbar-right">{right}</div>
+          <div className="topbar-right">{right}</div>
         </header>
         <div className="appbody">{children}</div>
       </div>

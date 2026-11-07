@@ -624,3 +624,19 @@ details.disclosure:not([open]) > summary.card-head { border-bottom: 0; }
 .design-number { color:var(--teal-700); font-size:11px; font-weight:750; }
 .design-node h3 { font-size:15px; margin:10px 0 5px; }.design-node strong { font-size:11px; color:var(--teal-700); }.design-node p { color:var(--ink-600); margin-top:10px; line-height:1.6; }
 @media(max-width:700px) { .design-lane-grid { grid-template-columns:1fr; } .design-node:not(:last-child):after { content:'↓'; top:auto; bottom:-17px; right:50%; } }
+/* Clear controls and a compact, accessible demo-stage picker. */
+.nav-collapse-top { all:unset; display:flex; align-items:center; justify-content:center; width:32px; height:32px; flex:none; border-radius:8px; color:var(--nav-fg); cursor:pointer; }
+.nav-collapse-top:hover { background:var(--nav-hover); color:#fff; }
+.nav-collapse-top:focus-visible { outline:2px solid var(--nav-active-fg); }
+@media(min-width:901px) { .is-collapsed .nav-top { flex-direction:column; gap:8px; } }
+@media(max-width:900px) { .nav-collapse-top { display:none; } }
+.fixture-bar { display:flex; justify-content:space-between; gap:16px; padding:14px 20px; background:var(--surface); color:var(--ink-900); border-bottom:1px solid var(--line); }
+.fixture-copy { display:flex; align-items:center; gap:11px; }
+.fixture-copy strong { font-size:13px; }.fixture-copy p { color:var(--ink-600); font-size:12px; margin-top:2px; }
+.fixture-icon { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; background:var(--teal-50); color:var(--teal-700); }
+.fixture-selector { display:flex; flex-direction:column; gap:3px; min-width:185px; color:var(--ink-500); font-size:10px; letter-spacing:.08em; font-weight:700; }
+.fixture-selector select { height:34px; padding:0 32px 0 10px; color:var(--ink-900); background:var(--surface); border:1px solid var(--line-strong); border-radius:8px; font:inherit; letter-spacing:0; font-size:12px; cursor:pointer; }
+.conv-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.conv-tabs button { height:32px; justify-content:space-between; border-radius:8px; padding:0 10px; }
+.conv-tabs button .num { min-width:19px; text-align:center; opacity:.8; }
+@media(max-width:600px) { .fixture-bar { align-items:stretch; flex-direction:column; } .fixture-selector { width:100%; } }
