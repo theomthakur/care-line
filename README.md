@@ -16,7 +16,7 @@ Finding care can involve long hold times, navigating provider directories and re
 4. The appointment is saved atomically: if callers compete for one slot, only one booking succeeds and the others must choose another time.
 5. The workspace displays call status, conversation, appointment and follow-up information for an operator.
 
-The voice layer uses **LiveKit and Python**; the booking service uses **FastAPI and SQLite**; the workspace uses **React and TypeScript**. The hosted Vercel preview uses saved examples and is separate from the live phone service.
+The voice layer uses **LiveKit and Python**; the booking service uses **FastAPI and SQLite**; the workspace uses **React and TypeScript**. The hosted Vercel preview uses fictional calls, follow-ups and provider schedules and is separate from the live phone service.
 
 ## Workspace
 
