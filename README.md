@@ -22,8 +22,8 @@ The voice layer uses **LiveKit and Python**; the booking service uses **FastAPI 
 
 - **Overview and conversations:** find calls and inspect their progress and transcript.
 - **Follow-ups and providers:** see handoff context and provider information.
-- **Explore:** open the system design and presentation.
-- **Appearance:** switch between light and dark from the sidebar; Settings also offers a system theme. Developer view is available directly in the sidebar.
+- **System design and presentation:** explore the architecture and project story.
+- **Appearance:** switch between light and dark from the sidebar. Developer view is available there too.
 
 The live agent, backend and workspace are separate processes. The Vercel preview does not connect to a phone number or create bookings.
 

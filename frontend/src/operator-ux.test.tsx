@@ -117,11 +117,11 @@ async function open() {
 }
 
 describe("A/B. sidebar navigation", () => {
-  it("shows the four primary destinations in a left navigation", async () => {
+  it("shows the primary destinations in a left navigation", async () => {
     await open();
     const nav = screen.getByRole("navigation", { name: "Main" });
     const labels = within(nav).getAllByRole("link").map((a) => a.getAttribute("data-tip"));
-    expect(labels).toEqual(["Overview", "Conversations", "Follow-ups", "Providers"]);
+    expect(labels).toEqual(["Overview", "Conversations", "Follow-ups", "Providers", "System design", "Presentation"]);
     expect(within(nav).getByRole("link", { name: "Conversations" })).toHaveAttribute("aria-current", "page");
   });
 
@@ -168,50 +168,22 @@ describe("A/B. sidebar navigation", () => {
   });
 });
 
-describe("C. appearance", () => {
-  const openSettings = async () => {
-    await act(async () => screen.getByRole("button", { name: "Settings and appearance" }).click());
-  };
-  const choose = async (name: string) => {
-    await act(async () => within(screen.getByRole("radiogroup", { name: "Theme" })).getByRole("radio", { name }).click());
-  };
-
-  it("defaults to light and offers light, dark and system", async () => {
+describe("C. appearance and navigation", () => {
+  it("defaults to light and switches from the sidebar", async () => {
     await open();
     expect(document.documentElement.dataset.theme).toBe("light");
-    expect(document.documentElement.dataset.themeMode).toBe("light");
-    await openSettings();
-    expect(within(screen.getByRole("radiogroup", { name: "Theme" })).getAllByRole("radio").map((r) => r.textContent?.trim())).toEqual(["Light", "Dark", "System"]);
-    expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
-  });
-
-  it("applies and persists an explicit choice", async () => {
-    await open();
-    await openSettings();
-    await choose("Dark");
+    await act(async () => screen.getByRole("button", { name: "Switch to dark mode" }).click());
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(localStorage.getItem("careline-theme")).toBe("dark");
-    cleanup();
-    document.documentElement.removeAttribute("data-theme");
-    await open();
-    expect(document.documentElement.dataset.theme).toBe("dark"); // restored on reload
-    await openSettings();
-    await choose("Light");
+    await act(async () => screen.getByRole("button", { name: "Switch to light mode" }).click());
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
-  it("follows the operating system while System is selected", async () => {
-    cleanup();
-    const setSystemDark = mockMatchMedia(false);
+  it("shows architecture and presentation directly in navigation", async () => {
     await open();
-    expect(document.documentElement.dataset.theme).toBe("light");
-    await openSettings();
-    await choose("System");
-    await act(async () => setSystemDark(true));
-    expect(document.documentElement.dataset.theme).toBe("dark");
-    await choose("Light"); // an explicit choice stops following the system
-    await act(async () => setSystemDark(true));
-    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByRole("link", { name: "System design" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Presentation" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Settings and appearance" })).toBeNull();
   });
 });
 
@@ -344,8 +316,7 @@ describe("L. privacy in navigation, lists and storage", () => {
     window.location.hash = "#view=conversations&call=call_P";
     await open();
     await act(async () => screen.getByRole("button", { name: "Collapse sidebar" }).click());
-    await act(async () => screen.getByRole("button", { name: "Settings and appearance" }).click());
-    await act(async () => within(screen.getByRole("radiogroup", { name: "Theme" })).getByRole("radio", { name: "Dark" }).click());
+    await act(async () => screen.getByRole("button", { name: "Switch to dark mode" }).click());
     await tick(2500);
     const keys = Object.keys(localStorage).sort();
     expect(keys.every((k) => ["careline-sidebar", "careline-theme", "careline-developer"].includes(k))).toBe(true);

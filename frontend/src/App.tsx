@@ -302,7 +302,6 @@ export function App() {
       counts={counts}
       theme={theme.mode}
       onTheme={theme.setMode}
-      developer={developer}
       onDeveloper={setDeveloper}
       title={TITLES[view]}
       right={view === "providers" ? undefined : <ConnectionBadge connection={link} lastOk={lastOk} fixture={isFixture} onRetry={refresh} />}
