@@ -1,5 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ArrowDown, MessageSquare } from "lucide-react";
+import {
+  ArrowDown,
+  AudioLines,
+  LockKeyhole,
+  MessageSquare,
+  UserRound,
+} from "lucide-react";
 import type { Turn } from "../types";
 import { isRedacted, shortClock } from "../format";
 import { Empty } from "./ui";
@@ -13,7 +19,17 @@ export const WINDOW = 200;
  * have scrolled up to read, new turns raise a "jump to latest" chip instead of moving
  * the view.
  */
-export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boolean; callId: string }) {
+export function Transcript({
+  turns,
+  live,
+  callId,
+  followOnOpen = true,
+}: {
+  turns: Turn[];
+  live: boolean;
+  callId: string;
+  followOnOpen?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const lastSeq = useRef(0);
@@ -38,18 +54,20 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
       setAll(false);
     }
     const newest = turns.length ? turns[turns.length - 1].seq : 0;
+    const firstPaint = lastSeq.current === 0;
     const added = turns.filter((t) => t.seq > lastSeq.current).length;
     lastSeq.current = newest;
-    if (!added) return;
+    if (!added || (firstPaint && !followOnOpen)) return;
     if (pinned.current) toBottom(lastSeq.current > 0 && added <= 2);
     else setUnseen((n) => n + added);
-  }, [turns, callId]);
+  }, [turns, callId, followOnOpen]);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const onScroll = () => {
-      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM;
+      const atBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM;
       pinned.current = atBottom;
       if (atBottom) setUnseen(0);
     };
@@ -59,15 +77,26 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
 
   if (!turns.length) {
     return (
-      <Empty icon={<MessageSquare size={18} />} title={live ? "Waiting for the first words" : "No transcript recorded"}>
-        {live ? "The conversation appears here as soon as the caller and agent start talking." : "This call ended before any turn was stored."}
+      <Empty
+        icon={<MessageSquare size={18} />}
+        title={live ? "Waiting for the first words" : "No transcript recorded"}
+      >
+        {live
+          ? "The conversation appears here as soon as the caller and agent start talking."
+          : "This call ended before any turn was stored."}
       </Empty>
     );
   }
 
   return (
     <>
-      <div className="transcript" ref={ref} role="log" aria-live="polite" aria-label="Call transcript">
+      <div
+        className="transcript"
+        ref={ref}
+        role="log"
+        aria-live="polite"
+        aria-label="Call transcript"
+      >
         {hidden > 0 && (
           <div style={{ textAlign: "center", marginBottom: 12 }}>
             <button
@@ -76,7 +105,9 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
                 const el = ref.current;
                 const before = el ? el.scrollHeight - el.scrollTop : 0;
                 setAll(true);
-                requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight - before; });
+                requestAnimationFrame(() => {
+                  if (el) el.scrollTop = el.scrollHeight - before;
+                });
               }}
             >
               Show {hidden} earlier {hidden === 1 ? "message" : "messages"}
@@ -86,13 +117,31 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
         {shown.map((t) => (
           <div key={t.seq} className={`turn ${t.role}`}>
             <div className="who">
-              <span className={`avatar ${t.role === "user" ? "caller" : "agent"}`} aria-hidden="true">
-                {t.role === "user" ? "C" : "A"}
+              <span
+                className={`avatar ${t.role === "user" ? "caller" : "agent"}`}
+                aria-hidden="true"
+              >
+                {t.role === "user" ? (
+                  <UserRound size={13} />
+                ) : (
+                  <AudioLines size={13} />
+                )}
               </span>
-              {t.role === "user" ? "Caller" : "Agent"}
+              <span className="turn-speaker">
+                {t.role === "user" ? "Caller" : "CareLine"}
+              </span>
               <time dateTime={t.received_at}>{shortClock(t.received_at)}</time>
             </div>
-            <div className={`bubble ${isRedacted(t.text) ? "redacted" : ""}`}>{isRedacted(t.text) ? "Verification details hidden" : t.text}</div>
+            <div className={`bubble ${isRedacted(t.text) ? "redacted" : ""}`}>
+              {isRedacted(t.text) ? (
+                <>
+                  <LockKeyhole size={12} aria-hidden="true" />
+                  Verification details hidden
+                </>
+              ) : (
+                t.text
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -106,7 +155,8 @@ export function Transcript({ turns, live, callId }: { turns: Turn[]; live: boole
               toBottom(true);
             }}
           >
-            <ArrowDown size={14} /> {unseen} new {unseen === 1 ? "message" : "messages"}
+            <ArrowDown size={14} /> {unseen} new{" "}
+            {unseen === 1 ? "message" : "messages"}
           </button>
         </div>
       )}

@@ -20,7 +20,7 @@ function useNow(ms = 1000) {
  * One row. It deliberately shows no transcript text and no member number: only who (name once
  * verified), where the call stands, and whether a person has to act.
  */
-const Row = memo(function Row({ c, selected, now, onSelect }: { c: CallSummary; selected: boolean; now: number; onSelect: (id: string) => void }) {
+const Row = memo(function Row({ c, selected, now, fixture, onSelect }: { c: CallSummary; selected: boolean; now: number; fixture: boolean; onSelect: (id: string) => void }) {
   const live = c.status === "live";
   const st = statusView(c);
   const attention = needsAttention(c);
@@ -40,7 +40,7 @@ const Row = memo(function Row({ c, selected, now, onSelect }: { c: CallSummary; 
         </span>
         <span className="conv-name">{verified ? c.member!.name : "Unverified caller"}</span>
         {live && <span className="dot pulse conv-live" title="Active call" />}
-        <span className="conv-time num">{duration(c.created_at, c.finalized_at, now)}</span>
+        <span className="conv-time num">{fixture ? "Sample" : duration(c.created_at, c.finalized_at, now)}</span>
       </span>
       <span className="conv-mid">
         <Chip tone={st.tone}>{st.label}</Chip>
@@ -54,7 +54,7 @@ const Row = memo(function Row({ c, selected, now, onSelect }: { c: CallSummary; 
         <span className="mono" title={c.call_id}>#{shortId(c.call_id)}</span>
         {c.confirmation && <span className="mono conv-conf">{c.confirmation}</span>}
         <span className="conv-spacer" />
-        <span>{live ? `updated ${sinceLabel(c.last_activity_at, now)}` : `ended ${sinceLabel(c.finalized_at ?? c.last_activity_at, now)}`}</span>
+        <span>{fixture ? "Saved example" : live ? `updated ${sinceLabel(c.last_activity_at, now)}` : `ended ${sinceLabel(c.finalized_at ?? c.last_activity_at, now)}`}</span>
       </span>
     </button>
   );
@@ -131,7 +131,7 @@ export function ConversationList({
     <aside className={`sidebar ${stale ? "is-stale" : ""}`} aria-label="Conversations">
       <div className="sidebar-head">
         <h2>Conversations</h2>
-        {fixture ? <Chip tone="amber">Fixture</Chip> : <span className="card-meta num">{live} active</span>}
+        {fixture ? <Chip tone="outline">Sample</Chip> : <span className="card-meta num">{live} active</span>}
       </div>
       <div className="conv-search">
         <Search size={14} aria-hidden="true" />
@@ -164,7 +164,7 @@ export function ConversationList({
               {sec.list.length === 0 ? (
                 <p className="conv-empty">{query ? "No conversations match your search." : sec.empty}</p>
               ) : (
-                sec.list.map((c) => <Row key={c.call_id} c={c} selected={c.call_id === selectedId} now={now} onSelect={onSelect} />)
+                sec.list.map((c) => <Row key={c.call_id} c={c} selected={c.call_id === selectedId} now={now} fixture={fixture} onSelect={onSelect} />)
               )}
             </section>
           ))

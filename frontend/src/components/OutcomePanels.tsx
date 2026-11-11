@@ -11,6 +11,8 @@ import {
   HandHeart,
   History,
   Phone,
+  UserRound,
+
   Hourglass,
   X,
 } from "lucide-react";
@@ -43,37 +45,26 @@ export function BookingCard({ s }: { s: CallState }) {
   const provider = s.providers.find((p) => p.id === s.selected);
 
   return (
-    <section className={`card booking ${phase === "confirmed" ? "confirmed" : ""}`} aria-label="Appointment outcome">
+    <section className={`card booking appointment-card ${phase}`} aria-label="Appointment outcome">
       <div className="booking-top">
-        <CalendarCheck2 size={15} color={phase === "confirmed" ? "var(--green-700)" : "var(--ink-400)"} />
-        <h2 style={{ fontSize: 13, fontWeight: 620, color: phase === "confirmed" ? "var(--green-700)" : undefined }}>Appointment</h2>
+        <span className="appointment-heading-icon"><CalendarCheck2 size={17} /></span>
+        <h2>Appointment</h2>
         <span style={{ flex: 1 }} />
-        {phase === "confirmed" && <Chip tone="green"><CheckCircle2 size={12} /> Booked and confirmed</Chip>}
+        {phase === "confirmed" && <Chip tone="green">Confirmed</Chip>}
         {phase === "awaiting_yes" && <Chip tone="amber"><Hourglass size={12} /> Awaiting caller's yes</Chip>}
         {phase === "proposed" && <Chip tone="blue">Proposed · not booked</Chip>}
         {phase === "conflict" && <Chip tone="red"><AlertTriangle size={12} /> Slot taken</Chip>}
         {phase === "none" && <Chip>{s.status === "finalized" ? "Not booked" : "No appointment yet"}</Chip>}
       </div>
       <div className="booking-state">
-        <div className="progress" role="list" aria-label="Booking progress">
-          {segs.map((g) => (
-            <div key={g.key} role="listitem" className={`seg ${g.state}`} aria-label={`${g.label}: ${g.state === "done" ? "complete" : g.state === "current" ? "in progress" : g.state === "failed" ? "failed" : "not started"}`}>
-              <div className="bar" />
-              {g.label}
-            </div>
-          ))}
-        </div>
+
 
         {a ? (
-          <div style={{ marginTop: 18 }}>
-            <div className="confirm-label">Confirmation number</div>
-            <div className="confirm-num" aria-label={`Confirmation ${a.confirmation}`}>{a.confirmation}</div>
-            <div className="muted" style={{ fontSize: 12.5 }}>Saved in the schedule{a.simulated ? " (simulated provider schedule)" : ""}</div>
-            <div className="booking-grid">
-              <div className="wide"><div className="lbl">When</div><div className="val">{a.when}</div></div>
-              <div><div className="lbl">Doctor</div><div className="val">{a.doctor}</div></div>
-              <div><div className="lbl">Office phone</div><div className="val num">{a.phone}</div></div>
-            </div>
+          <div className="appointment-details">
+            <div className="appointment-outcome"><span className="appointment-seal"><Check size={20} strokeWidth={2}/></span><div><h3>Appointment confirmed</h3><p>{a.simulated ? "Saved to the demo schedule" : "Saved to the provider schedule"}</p></div></div>
+            <div className="appointment-when"><span className="appointment-detail-icon"><CalendarClock size={18}/></span><div><span className="appointment-label">DATE & TIME</span><p>{a.when}</p></div></div>
+            <div className="appointment-provider"><span className="appointment-detail-icon"><UserRound size={18}/></span><div><span className="appointment-label">YOUR PROVIDER</span><p>{a.doctor}</p><span className="appointment-phone"><Phone size={11}/>{a.phone}</span></div></div>
+            <div className="appointment-reference"><div><span className="appointment-label">CONFIRMATION NUMBER</span><div className="confirm-num" aria-label={`Confirmation ${a.confirmation}`}>{a.confirmation}</div></div><CheckCircle2 size={17} aria-hidden="true"/></div>
           </div>
         ) : (
           <>
@@ -109,6 +100,16 @@ export function BookingCard({ s }: { s: CallState }) {
             )}
           </>
         )}
+        <div className="appointment-workflow"><div className="appointment-label">BOOKING CHECKLIST</div>
+        <div className="progress" role="list" aria-label="Booking progress">
+          {segs.map((g) => (
+            <div key={g.key} role="listitem" className={`seg ${g.state}`} aria-label={`${g.label}: ${g.state === "done" ? "complete" : g.state === "current" ? "in progress" : g.state === "failed" ? "failed" : "not started"}`}>
+              <span className="step-marker" aria-hidden="true">{g.state === "done" ? <Check size={10} strokeWidth={2.5}/> : <span/>}</span>
+              {g.label}
+            </div>
+          ))}
+        </div>
+        </div>
       </div>
     </section>
   );

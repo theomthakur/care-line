@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { CloudOff, FlaskConical, MessageSquare, PhoneCall, RefreshCw, SearchX, WifiOff } from "lucide-react";
+import { ChevronDown, CloudOff, FlaskConical, MessageSquare, PhoneCall, RefreshCw, SearchX, WifiOff } from "lucide-react";
 import { getCallState, getCallSummary, getCalls } from "./api";
 import { Providers } from "./Providers";
 import { Architecture, Deck, Developer } from "./pages/Explore";
@@ -44,7 +44,7 @@ function useTick(ms: number) {
 
 function ConnectionBadge({ connection, lastOk, fixture, onRetry }: { connection: Connection; lastOk: number | null; fixture: boolean; onRetry: () => void }) {
   useTick(1000);
-  if (fixture) return <Chip tone="amber" lg><FlaskConical size={12} /> Fixture data</Chip>;
+  if (fixture) return <Chip tone="amber" lg><FlaskConical size={12} /> Sample data</Chip>;
   if (connection === "loading") return <Chip lg><span className="spinner" style={{ width: 11, height: 11, borderWidth: 1.5 }} /> Connecting</Chip>;
   if (connection === "connected") return <Chip tone="green" lg title={lastOk ? `Updated ${shortClock(new Date(lastOk).toISOString())}` : undefined}><span className="dot pulse" /> Connected</Chip>;
   return (
@@ -114,8 +114,8 @@ const Case = memo(function Case({ s, tab, canAct, onChanged, stale, details, dev
       <CaseHeader s={s} />
       <div className="case-body">
         <div className={`col col-fill col-call ${tab === "call" ? "active" : ""}`}>
-          <Card className="fill" title="Conversation" icon={<MessageSquare size={15} />} meta={live ? <Chip tone="green"><span className="dot" /> Updating live</Chip> : "Full transcript"} bodyClass="card-body" label="Conversation">
-            <Transcript turns={s.turns} live={live} callId={s.call_id} />
+          <Card className="fill conversation-card" title={<span className="conversation-heading">Conversation<small>What was said, in context</small></span>} icon={<MessageSquare size={15} />} meta={!canAct ? <span className="transcript-count">{s.turns.length} messages · saved example</span> : live ? <Chip tone="green"><span className="dot" /> Updating live</Chip> : "Full transcript"} bodyClass="card-body" label="Conversation">
+            <Transcript followOnOpen={canAct} turns={s.turns} live={live} callId={s.call_id} />
           </Card>
         </div>
         <div className={`col col-side ${tab === "case" ? "active" : ""}`}>
@@ -162,8 +162,8 @@ function readDeveloper(): boolean {
 
 export function App() {
   const theme = useTheme();
-  const { route, go } = useRoute(!isFixture);
-  const [showLanding, setShowLanding] = useState(import.meta.env.VITE_FIXTURE_ONLY === "1");
+  const { route, go } = useRoute();
+  const [showLanding, setShowLanding] = useState(import.meta.env.VITE_FIXTURE_ONLY === "1" && !window.location.hash.includes("view="));
   const [stage, setStage] = useState("booked");
   const fixtureStage = useMemo(() => FIXTURE_STAGES.find((f) => f.key === stage) ?? FIXTURE_STAGES[0], [stage]);
   const [tab, setTab] = useState<Tab>("call");
@@ -249,7 +249,7 @@ export function App() {
 
   const page =
     view === "overview" ? (
-      <Overview calls={calls} loading={list.connection === "loading"} onOpen={select} onNavigate={(v) => go({ view: v })} />
+      <Overview fixture={isFixture} calls={calls} loading={list.connection === "loading"} onOpen={select} onNavigate={(v) => go({ view: v })} />
     ) : view === "followups" ? (
       <FollowUps calls={calls} onOpenCall={select} canAct={canAct} onChanged={refresh} sampleTasks={isFixture ? DEMO_TASKS : undefined} />
     ) : view === "providers" ? (
@@ -265,7 +265,7 @@ export function App() {
         {isFixture && (
           <div className="fixture-bar" role="region" aria-label="Demo preview">
             <div className="fixture-copy"><span className="fixture-icon"><FlaskConical size={17}/></span><div><strong>Explore a sample call</strong><p>Showing a saved example. Changes and bookings are disabled.</p></div></div>
-            <label className="fixture-selector"><span>MAYA’S CALL STAGE</span><select value={stage} onChange={(e) => { setStage(e.target.value); go({ view: "conversations", call: "demo_booked" }); }} aria-label="Choose sample call stage">{FIXTURE_STAGES.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select></label>
+            <label className="fixture-selector"><span>MAYA’S CALL STAGE</span><span className="stage-select"><select value={stage} onChange={(e) => { setStage(e.target.value); go({ view: "conversations", call: "demo_booked" }); }} aria-label="Choose sample call stage">{FIXTURE_STAGES.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}</select><ChevronDown size={16} aria-hidden="true" /></span></label>
           </div>
         )}
 
@@ -294,14 +294,14 @@ export function App() {
       </>
     );
 
-  if (showLanding) return <Landing onOpen={() => setShowLanding(false)} theme={theme.mode} onTheme={theme.setMode} />;
+  if (showLanding) return <Landing onOpen={() => setShowLanding(false)} theme={theme.resolved} onTheme={theme.setMode} />;
 
   return (
     <AppShell
       view={view}
       onNavigate={(v) => go({ view: v })}
       counts={counts}
-      theme={theme.mode}
+      theme={theme.resolved}
       onTheme={theme.setMode}
       onDeveloper={setDeveloper}
       title={TITLES[view]}

@@ -31,7 +31,7 @@ export const FIXTURE_STAGES: { key: string; label: string; state: CallState | nu
 function sampleCase(stage: string, id: string, name: string): CallState {
   const original = FIXTURE_STAGES.find((s) => s.key === stage)?.state;
   if (!original) throw new Error(`Missing sample stage: ${stage}`);
-  const copy: CallState = JSON.parse(JSON.stringify(original));
+  const copy: CallState = JSON.parse(JSON.stringify(original).replaceAll("Maya", name.split(" ")[0]));
   copy.call_id = id;
   if (copy.member) copy.member.name = name;
   copy.turns = copy.turns.map((t) => ({ ...t, text: t.text.replaceAll('Maya', name.split(' ')[0]) }));

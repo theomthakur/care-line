@@ -1,5 +1,28 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Code2, ChevronsLeft, ChevronsRight, HandHeart, LayoutDashboard, MessagesSquare, Menu, Moon, Presentation, Stethoscope, Sun, Workflow, X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  Code2,
+  ChevronsLeft,
+  ChevronsRight,
+  ChevronRight,
+  CircleHelp,
+  ShieldCheck,
+  HandHeart,
+  LayoutDashboard,
+  MessagesSquare,
+  Menu,
+  Moon,
+  Presentation,
+  Stethoscope,
+  Sun,
+  Workflow,
+  X,
+} from "lucide-react";
 import { Logo, LogoMark } from "../Logo";
 import { buildHash, type View } from "../route";
 import type { ThemeMode } from "../theme";
@@ -22,11 +45,23 @@ function readCollapsed(): boolean {
 
 const ITEMS: { view: View; label: string; icon: ReactNode }[] = [
   { view: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
-  { view: "conversations", label: "Conversations", icon: <MessagesSquare size={18} /> },
+  {
+    view: "conversations",
+    label: "Conversations",
+    icon: <MessagesSquare size={18} />,
+  },
   { view: "followups", label: "Follow-ups", icon: <HandHeart size={18} /> },
   { view: "providers", label: "Providers", icon: <Stethoscope size={18} /> },
-  { view: "architecture", label: "System design", icon: <Workflow size={18} /> },
-  { view: "presentation", label: "Presentation", icon: <Presentation size={18} /> },
+  {
+    view: "architecture",
+    label: "System design",
+    icon: <Workflow size={18} />,
+  },
+  {
+    view: "presentation",
+    label: "Presentation",
+    icon: <Presentation size={18} />,
+  },
 ];
 
 export function AppShell({
@@ -72,13 +107,16 @@ export function AppShell({
 
   useEffect(() => {
     if (!drawer) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeDrawer(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDrawer();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [drawer, closeDrawer]);
 
   useEffect(() => {
-    if (drawer) navRef.current?.querySelector<HTMLElement>("a.nav-link")?.focus();
+    if (drawer)
+      navRef.current?.querySelector<HTMLElement>("a.nav-link")?.focus();
   }, [drawer]);
 
   const go = (v: View) => {
@@ -87,67 +125,145 @@ export function AppShell({
   };
 
   const badge = (v: View) => {
-    if (v === "conversations") return counts.active > 0 ? { n: counts.active, tone: "live", label: `${counts.active} active` } : null;
-    if (v === "followups") return counts.followups > 0 ? { n: counts.followups, tone: "attention", label: `${counts.followups} open` } : null;
+    if (v === "conversations")
+      return counts.active > 0
+        ? { n: counts.active, tone: "live", label: `${counts.active} active` }
+        : null;
+    if (v === "followups")
+      return counts.followups > 0
+        ? {
+            n: counts.followups,
+            tone: "attention",
+            label: `${counts.followups} open`,
+          }
+        : null;
     return null;
   };
 
   return (
-    <div className={`appshell ${collapsed ? "is-collapsed" : ""} ${drawer ? "drawer-open" : ""}`}>
+    <div
+      className={`appshell ${collapsed ? "is-collapsed" : ""} ${drawer ? "drawer-open" : ""}`}
+    >
       <aside className="nav" id="primary-nav" ref={navRef} aria-label="Primary">
         <div className="nav-top">
-          <a className="nav-brand" href={buildHash({ view: "overview", call: null })} onClick={(e) => { e.preventDefault(); go("overview"); }} aria-label="Care Line, go to Overview">
+          <a
+            className="nav-brand"
+            href={buildHash({ view: "overview", call: null })}
+            onClick={(e) => {
+              e.preventDefault();
+              go("overview");
+            }}
+            aria-label="Care Line, go to Overview"
+          >
             {collapsed ? <LogoMark size={34} /> : <Logo size={36} />}
           </a>
-          <button type="button" className="nav-collapse nav-collapse-top" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-pressed={collapsed} title={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={toggleCollapsed}>{collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}</button>
-          <button type="button" className="nav-close" onClick={closeDrawer} aria-label="Close navigation">
+          <button
+            type="button"
+            className="nav-collapse nav-collapse-top"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-pressed={collapsed}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            onClick={toggleCollapsed}
+          >
+            {collapsed ? (
+              <ChevronsRight size={18} />
+            ) : (
+              <ChevronsLeft size={18} />
+            )}
+          </button>
+          <button
+            type="button"
+            className="nav-close"
+            onClick={closeDrawer}
+            aria-label="Close navigation"
+          >
             <X size={18} />
           </button>
         </div>
 
         <nav className="nav-list" aria-label="Main">
+          <p className="nav-section-label">WORKSPACE</p>
           {ITEMS.map((it) => {
             const b = badge(it.view);
             const active = view === it.view;
             return (
-              <a
-                key={it.view}
-                href={buildHash({ view: it.view, call: null })}
-                className={`nav-link ${active ? "selected" : ""}`}
-                aria-current={active ? "page" : undefined}
-                aria-label={b ? `${it.label}, ${b.label}` : it.label}
-                data-tip={it.label}
-                onClick={(e) => {
-                  e.preventDefault();
-                  go(it.view);
-                }}
-              >
-                {it.icon}
-                <span className="nav-text">{it.label}</span>
-                {b && <span className={`nav-badge ${b.tone}`} aria-hidden="true">{b.n}</span>}
-              </a>
+              <div className="nav-item-wrap" key={it.view}>
+                {it.view === "architecture" && (
+                  <p className="nav-section-label resources-label">PROJECT</p>
+                )}
+                <a
+                  key={it.view}
+                  href={buildHash({ view: it.view, call: null })}
+                  className={`nav-link ${active ? "selected" : ""}`}
+                  aria-current={active ? "page" : undefined}
+                  aria-label={b ? `${it.label}, ${b.label}` : it.label}
+                  data-tip={it.label}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    go(it.view);
+                  }}
+                >
+                  {it.icon}
+                  <span className="nav-text">{it.label}</span>
+                  {b && (
+                    <span className={`nav-badge ${b.tone}`} aria-hidden="true">
+                      {b.n}
+                    </span>
+                  )}
+                </a>
+              </div>
             );
           })}
           {counts.attention > 0 && (
             <p className="nav-note" role="status">
-              <span className="dot" /> {counts.attention} {counts.attention === 1 ? "call needs" : "calls need"} attention
+              <span className="dot" /> {counts.attention}{" "}
+              {counts.attention === 1 ? "call needs" : "calls need"} attention
             </p>
           )}
         </nav>
 
         <div className="nav-bottom">
-          <button type="button" className="nav-link" data-tip={theme === "dark" ? "Light mode" : "Dark mode"} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} onClick={() => onTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun size={18}/> : <Moon size={18}/>}<span className="nav-text">{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+          <button
+            type="button"
+            className="nav-link"
+            data-tip={theme === "dark" ? "Light mode" : "Dark mode"}
+            aria-label={
+              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+            }
+            onClick={() => onTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            <span className="nav-text">
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </span>
           </button>
-          <button type="button" className={`nav-link ${view === "developer" ? "selected" : ""}`} data-tip="Developer view" onClick={() => { onDeveloper(true); go("developer"); }}>
-            <Code2 size={18}/><span className="nav-text">Developer view</span>
+          <button
+            type="button"
+            className={`nav-link ${view === "developer" ? "selected" : ""}`}
+            data-tip="Developer view"
+            onClick={() => {
+              onDeveloper(true);
+              go("developer");
+            }}
+          >
+            <Code2 size={18} />
+            <span className="nav-text">Developer view</span>
           </button>
-          <p className="nav-foot">Synthetic demo data</p>
+          <div className="nav-workspace-card">
+            <span className="workspace-icon">
+              <ShieldCheck size={17} />
+            </span>
+            <div>
+              <b>Member support</b>
+              <small>Synthetic demo data</small>
+            </div>
+          </div>
         </div>
-
       </aside>
 
-      {drawer && <div className="nav-scrim" onClick={closeDrawer} aria-hidden="true" />}
+      {drawer && (
+        <div className="nav-scrim" onClick={closeDrawer} aria-hidden="true" />
+      )}
 
       <div className="appmain">
         <header className="topbar">
@@ -162,9 +278,32 @@ export function AppShell({
           >
             <Menu size={19} />
           </button>
-          <h1 className="topbar-title">{title}</h1>
+          <div className="topbar-breadcrumb">
+            <span>Workspace</span>
+            <ChevronRight size={13} />
+            <h1 className="topbar-title">{title}</h1>
+          </div>
           <span className="topbar-spacer" />
-          <div className="topbar-right">{right}</div>
+          <div className="topbar-right">
+            {right}
+            <span className="topbar-divider" />
+            <a
+              className="topbar-help"
+              href="https://github.com/theomthakur/care-line#readme"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Project documentation"
+            >
+              <CircleHelp size={18} />
+            </a>
+            <span
+              className="operator-avatar"
+              title="Member support workspace"
+              aria-label="Member support"
+            >
+              CL
+            </span>
+          </div>
         </header>
         <div className="appbody">{children}</div>
       </div>
