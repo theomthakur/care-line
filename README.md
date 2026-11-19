@@ -79,6 +79,8 @@ cd frontend && npm test && npm run build
 
 The Vercel build is a **read-only synthetic UI preview**. A live phone experience also needs a running backend and LiveKit agent; Vercel alone does not provide those services.
 
+To keep the phone demo available without a running laptop, use the [Render deployment guide](docs/RENDER-DEPLOYMENT.md) and root `render.yaml` Blueprint. It configures a paid voice worker, a booking API and a persistent SQLite disk; the Render guide includes setup, credentials and a real-call acceptance check.
+
 The optional live identity CI scenario runs only when `LIVEKIT_IDENTITY_TEST_ENABLED` is set to `true` and dedicated synthetic LiveKit test credentials are configured. A skipped scenario has not been verified.
 
 See [booking security](docs/BOOKING-SECURITY.md) and [API contracts](contracts/README.md) for implementation details.

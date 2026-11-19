@@ -89,7 +89,13 @@ def handle_silence(session: AgentSession) -> None:
             task.add_done_callback(tasks.discard)
 
 
-server = AgentServer()
+# Optional deployment sizing; local/default SDK behavior stays unchanged.
+server_options = {}
+if os.getenv("AGENT_IDLE_PROCESSES"):
+    server_options["num_idle_processes"] = int(os.environ["AGENT_IDLE_PROCESSES"])
+if os.getenv("AGENT_DRAIN_TIMEOUT"):
+    server_options["drain_timeout"] = int(os.environ["AGENT_DRAIN_TIMEOUT"])
+server = AgentServer(**server_options)
 
 
 @server.rtc_session(agent_name=AGENT_NAME)

@@ -1,0 +1,65 @@
+# Paid, synthetic demo only. Review Render's cost estimate before applying.
+services:
+  - type: web
+    name: careline-booking-api
+    runtime: docker
+    plan: starter
+    region: virginia
+    numInstances: 1
+    autoDeployTrigger: "off"
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uv run uvicorn deploy.render_backend:app --host 0.0.0.0 --port 10000 --workers 1 --proxy-headers --forwarded-allow-ips '*'
+    healthCheckPath: /healthz
+    disk:
+      name: careline-demo-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: MEMBERGUIDE_ENV
+        value: synthetic
+      - key: MEMBERGUIDE_DB_PATH
+        value: /app/data/synthetic/memberguide.db
+      - key: MEMBERGUIDE_AGENT_KEY
+        generateValue: true
+      - key: MEMBERGUIDE_EXPANDED_ROSTER
+        value: "1"
+
+  - type: worker
+    name: careline-voice-agent
+    runtime: docker
+    plan: standard
+    region: virginia
+    numInstances: 1
+    autoDeployTrigger: "off"
+    dockerfilePath: ./Dockerfile
+    dockerCommand: uv run python -m deploy.render_agent start
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: MEMBERGUIDE_ENV
+        value: synthetic
+      - key: MEMBERGUIDE_AGENT_KEY
+        fromService:
+          type: web
+          name: careline-booking-api
+          envVarKey: MEMBERGUIDE_AGENT_KEY
+      - key: BOOKING_API_HOST
+        fromService:
+          type: web
+          name: careline-booking-api
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+      - key: AGENT_NAME
+        value: take2-agent
+      - key: AGENT_IDLE_PROCESSES
+        value: "1"
+      - key: AGENT_DRAIN_TIMEOUT
+        value: "240"
+      - key: MODEL_PRESET
+        value: budget
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
