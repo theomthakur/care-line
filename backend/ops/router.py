@@ -108,15 +108,18 @@ def calls_latest(conn: sqlite3.Connection = Depends(get_conn)):
 
 
 @router.get("/providers/directory")
-def providers_directory(conn: sqlite3.Connection = Depends(get_conn)):
+def providers_directory(request: Request, conn: sqlite3.Connection = Depends(get_conn)):
     """Read-only provider directory with open times per day, for the operator workspace."""
     from datetime import datetime, timezone
     from zoneinfo import ZoneInfo
 
-    from . import clock
-
     eastern = ZoneInfo("America/New_York")
-    now = clock.now().astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Same clock as booking, so a demo/test clock and the directory agree.
+    now = (
+        request.app.state.db.now()
+        .astimezone(timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
     out = []
     for p in conn.execute("SELECT * FROM providers ORDER BY CAST(SUBSTR(id,2) AS INT)"):
         networks = [

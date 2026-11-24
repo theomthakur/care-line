@@ -41,12 +41,13 @@ PROVIDERS = [
         ["METRO", "VALUE"],
     ),
 ]
-# A wider roster for the running service. It lives in ZIP areas the original six do
+# A wider roster for the running service. IDs P7-P9 belong to the specialists above,
+# so these doctors use P10-P20. It lives in ZIP areas the original six do
 # not cover, so existing searches and tests are unchanged. Loaded by seed_expanded().
 EXPANDED_PROVIDERS = [
-    ("P7", "Dr. Priya Nair", "primary care", "10001", "212-555-0107", 1, ["METRO"]),
-    ("P8", "Dr. Elena Vasquez", "primary care", "10001", "212-555-0108", 1, ["VALUE"]),
-    ("P9", "Dr. Hannah Brooks", "primary care", "10011", "212-555-0109", 0, ["METRO"]),
+    ("P18", "Dr. Priya Nair", "primary care", "10001", "212-555-0118", 1, ["METRO"]),
+    ("P19", "Dr. Elena Vasquez", "primary care", "10001", "212-555-0119", 1, ["VALUE"]),
+    ("P20", "Dr. Hannah Brooks", "primary care", "10011", "212-555-0120", 0, ["METRO"]),
     ("P10", "Dr. Aisha Rahman", "primary care", "10011", "212-555-0110", 1, ["METRO"]),
     (
         "P11",

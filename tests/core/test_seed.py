@@ -87,7 +87,7 @@ def test_expanded_roster_adds_providers_without_touching_the_originals(db, clock
     seed_expanded(db, demo_date=clock().date())
     seed_expanded(db, demo_date=clock().date())  # repeating changes nothing
     with db.snapshot() as conn:
-        assert conn.execute("SELECT count(*) FROM providers").fetchone()[0] == 17
+        assert conn.execute("SELECT count(*) FROM providers").fetchone()[0] == 20
         after = [
             tuple(r)
             for r in conn.execute(
@@ -96,7 +96,7 @@ def test_expanded_roster_adds_providers_without_touching_the_originals(db, clock
         ]
         assert before == after
         # Every new doctor has open times, and some are taken.
-        for n in range(7, 18):
+        for n in range(10, 21):
             states = {
                 r[0]
                 for r in conn.execute(
@@ -128,3 +128,14 @@ def test_directory_route_lists_providers_and_open_times(db, clock):
     assert haddad["days"] and "open" in haddad["days"][0]
     reyes = next(p for p in body["providers"] if p["id"] == "P5")
     assert reyes["open_slots"] == 0 and reyes["next_open"] == []
+
+
+def test_wider_roster_does_not_overwrite_specialists(db, clock):
+    from backend.core.seed import EXPANDED_PROVIDERS, PROVIDERS, seed_expanded
+
+    assert not {p[0] for p in PROVIDERS} & {p[0] for p in EXPANDED_PROVIDERS}
+    seed_expanded(db, demo_date=clock().date())
+    with db.snapshot() as conn:
+        rows = dict(conn.execute("SELECT id, specialty FROM providers").fetchall())
+    assert rows["P7"] == "cardiology" and rows["P8"] == "dermatology"
+    assert {rows[f"P{n}"] for n in range(10, 21)} == {"primary care"}
