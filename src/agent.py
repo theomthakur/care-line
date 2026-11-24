@@ -120,10 +120,11 @@ async def entrypoint(ctx: JobContext) -> None:
             # Decides when the caller has finished speaking, using both the words
             # and the audio (pitch, pauses). Much better than a fixed silence timer.
             turn_detection=inference.TurnDetector(),
-            # A shorter endpoint reduces silence after the caller finishes. Test
-            # interruptions in the room; overly aggressive endpointing cuts people off.
-            # Patient enough for mumbling and mid-sentence pauses.
-            endpointing={"mode": "fixed", "min_delay": 0.6, "max_delay": 3.0},
+            # min_delay applies when the detector is confident the caller is done;
+            # max_delay caps the wait when it is unsure. A real call (23 Nov) showed
+            # short answers like "4417." or "tomorrow." always hit the old 3.0 s cap,
+            # adding ~2.6 s of silence. 1.6 s still covers a mid-sentence pause.
+            endpointing={"mode": "fixed", "min_delay": 0.4, "max_delay": 1.6},
             # A cough or "mm-hmm" must not cut the read-back short.
             interruption={"min_duration": 0.6, "min_words": 1},
             # Complete the safety and consent checks before generating a reply.

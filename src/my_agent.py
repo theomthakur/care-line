@@ -172,6 +172,19 @@ class MyAgent(Agent):
     def _on_item(self, ev: ConversationItemAddedEvent) -> None:
         """Assistant turns go to the dashboard in the background. User turns are awaited elsewhere."""
         item = ev.item
+        metrics = getattr(item, "metrics", None)
+        if metrics:
+            # Per-turn latency (end_of_turn_delay, llm_node_ttft, tts_node_ttfb...).
+            # Timings only; never the text.
+            logger.info(
+                "turn latency %s: %s",
+                getattr(item, "role", "?"),
+                {
+                    k: round(v, 3)
+                    for k, v in metrics.items()
+                    if "delay" in k or "tt" in k or "latency" in k
+                },
+            )
         if getattr(item, "role", None) != "assistant":
             return
         text = getattr(item, "text_content", None)
