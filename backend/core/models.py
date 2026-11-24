@@ -215,6 +215,7 @@ class ProvidersReply(Reply):
     excluded: list[Excluded]
     evidence: list[Evidence]
     request_version: int
+    referral: Optional[ReferralEligibility] = None
 
 
 class SelectReply(Reply):
@@ -276,5 +277,6 @@ class AppointmentsReply(Reply):
 
 class ErrorReply(Reply):
     error: str
+    referral_status: Optional[str] = None
     attempts_remaining: Optional[int] = None
     task_id: Optional[str] = None

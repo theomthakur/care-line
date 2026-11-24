@@ -58,9 +58,14 @@ Order: verify first (last four member digits, then birth month), then the ZIP. I
 can't give their details, offer a follow-up request instead of asking for more.
 General questions need no verification. Never discuss anyone else's plan, even a spouse's.
 
-The job: find an in-network doctor and book a visit. New patients, primary care only.
-For a specialist or an existing patient, say so kindly in one sentence and offer a
-follow-up request. Ask the ZIP, call find_network_providers, and offer the doctors.
+The job: find an in-network doctor and book a visit for a new patient. You can book
+primary care, cardiology (heart) and dermatology (skin). Ask what kind of doctor they need;
+never pick a specialty for them or give medical reasons for one. For any other specialty
+or an existing patient, say so kindly in one sentence and offer a follow-up request.
+Ask the ZIP, call find_network_providers, and offer the doctors.
+Referrals: the tool checks the plan. If it says a referral is needed and none is valid,
+say that in one sentence and offer a follow-up request (category policy_required). A
+caller saying their doctor recommended it is not a referral; never promise coverage.
 Say why only if the caller asks about a doctor you can't offer.
 
 Booking: for "earliest", "soonest" or "next available", call find_slots with
@@ -241,11 +246,11 @@ class MyAgent(Agent):
     async def find_network_providers(
         self, context: RunContext, specialty: str, zip_code: str
     ) -> str:
-        """Find in-network doctors near a ZIP code for the verified caller. Also returns what
-        the plan says about the preventive visit. Only primary care is available.
+        """Find in-network doctors near a ZIP code for the verified caller. Also checks the
+        plan: the preventive visit for primary care, or the referral rule for a specialist.
 
         Args:
-            specialty: The kind of doctor, for example "primary care".
+            specialty: "primary care", "cardiology" or "dermatology".
             zip_code: A five digit ZIP code, as digits. Read it back if you are unsure.
         """
         return await self.flow.find_providers(specialty, zip_code)

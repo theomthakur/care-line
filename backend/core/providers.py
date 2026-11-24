@@ -12,6 +12,19 @@ from .common import (
     require_coverage,
 )
 from .errors import DomainError
+from .referrals import SPECIALTIES, referral_evidence, require_referral
+
+SPECIALTY_ALIASES = {
+    "primary care": "primary care",
+    "primary care doctor": "primary care",
+    "pcp": "primary care",
+    "cardiology": "cardiology",
+    "cardiologist": "cardiology",
+    "heart doctor": "cardiology",
+    "dermatology": "dermatology",
+    "dermatologist": "dermatology",
+    "skin doctor": "dermatology",
+}
 
 ZIP_ORDER = {
     "10019": ["10019", "10023", "10024"],
@@ -52,22 +65,67 @@ def preventive_evidence(conn, member):
     return dict(row)
 
 
+def plan_evidence(conn, member, specialty):
+    if specialty == "primary care":
+        return preventive_evidence(conn, member)
+    return referral_evidence(conn, member)
+
+
+def provider_order(conn, zip_code, specialty):
+    """Primary care stays strict to the nearby ZIP list. Specialists are scarcer, so
+    every eligible one is offered, nearest ZIP first."""
+    order = zip_order(conn, zip_code)
+    if specialty == "primary care":
+        return order, lambda p: p["zip"] in (order or [])
+    if not zip_code.startswith(("10", "11")):
+        return None, lambda p: False
+    order = order or []
+    return order, lambda p: True
+
+
+def distance_key(order, zip_code):
+    def key(p):
+        if p["zip"] in order:
+            return (0, order.index(p["zip"]), p["id"])
+        return (1, abs(int(p["zip"]) - int(zip_code)), p["id"])
+
+    return key
+
+
 def search_providers(db, call_id, specialty, zip_code):
     with db.transaction() as conn:
         call = get_call(conn, call_id, verified=True, mutable=True)
         member = get_member(conn, call)
         now = db.now()
-        require_coverage(member, now.astimezone(EASTERN).date())
+        today = now.astimezone(EASTERN).date()
+        require_coverage(member, today)
         if not re.fullmatch(r"[0-9]{5}", zip_code):
             raise DomainError("INVALID_ZIP")
-        if specialty != "primary care":
+        specialty = SPECIALTY_ALIASES.get(specialty.strip().lower(), specialty)
+        if specialty not in ("primary care", *SPECIALTIES):
             raise DomainError("VISIT_TYPE_UNAVAILABLE")
-        evidence = preventive_evidence(conn, member)
+        evidence = plan_evidence(conn, member, specialty)
+        referral = None
+        invalidate(conn, call, clear_offers=True)
+        version = call["request_version"] + 1
+        conn.execute(
+            "UPDATE calls SET request_version=?,specialty=?,zip=?,selected_provider_id=NULL,providers_json='[]',excluded_json='[]',evidence_json=?,availability_query_json=NULL WHERE id=?",
+            (version, specialty, zip_code, json.dumps([evidence]), call_id),
+        )
+        if specialty != "primary care":
+            # Refusals persist so the console shows the referral outcome and evidence.
+            try:
+                referral = require_referral(
+                    conn, member, specialty, today, persist=True
+                )
+            except DomainError:
+                event(conn, call_id, "referral_required", now)
+                raise
         eligible, excluded = [], []
-        order = zip_order(conn, zip_code)
-        if order:
+        order, nearby = provider_order(conn, zip_code, specialty)
+        if order is not None:
             for provider in conn.execute(
-                "SELECT * FROM providers WHERE specialty='primary care' ORDER BY id"
+                "SELECT * FROM providers WHERE specialty=? ORDER BY id", (specialty,)
             ):
                 in_network = conn.execute(
                     "SELECT 1 FROM provider_networks WHERE provider_id=? AND network=?",
@@ -86,35 +144,42 @@ def search_providers(db, call_id, specialty, zip_code):
                             else "not accepting new patients",
                         }
                     )
-                elif provider["zip"] in order:
+                elif nearby(provider):
                     eligible.append(provider_view(provider))
-            eligible.sort(key=lambda p: (order.index(p["zip"]), p["id"]))
+            eligible.sort(key=distance_key(order, zip_code))
             eligible = eligible[:3]
-        invalidate(conn, call, clear_offers=True)
-        version = call["request_version"] + 1
         conn.execute(
-            "UPDATE calls SET request_version=?,specialty=?,zip=?,selected_provider_id=NULL,providers_json=?,excluded_json=?,evidence_json=?,availability_query_json=NULL WHERE id=?",
-            (
-                version,
-                specialty,
-                zip_code,
-                json.dumps(eligible),
-                json.dumps(excluded),
-                json.dumps([evidence]),
-                call_id,
-            ),
+            "UPDATE calls SET providers_json=?,excluded_json=? WHERE id=?",
+            (json.dumps(eligible), json.dumps(excluded), call_id),
         )
         event(conn, call_id, "providers_searched", now)
         if not eligible:
-            raise DomainError("NO_MATCH", persist=True)
+            label = (
+                "primary care provider"
+                if specialty == "primary care"
+                else specialty + " specialist"
+            )
+            raise DomainError(
+                "NO_MATCH",
+                f"I couldn't find an in-network {label} taking new patients near that ZIP.",
+                persist=True,
+            )
         names = " and ".join(p["name"] for p in eligible)
-        return {
+        lead = ""
+        if referral and referral["status"] == "valid":
+            lead = "I see your referral on file. "
+        elif referral and referral["status"] == "not_required":
+            lead = "Your plan doesn't need a referral for that. "
+        reply = {
             "providers": eligible,
             "excluded": excluded,
             "evidence": [evidence],
             "request_version": version,
-            "speak": f"I found {names} near you. Which would you like?",
+            "speak": f"{lead}I found {names} near you. Which would you like?",
         }
+        if referral is not None:
+            reply["referral"] = referral
+        return reply
 
 
 def select_provider(db, call_id, provider_id):
@@ -124,7 +189,7 @@ def select_provider(db, call_id, provider_id):
         now = db.now()
         require_coverage(member, now.astimezone(EASTERN).date())
         provider = check_provider(conn, call, member, provider_id)
-        evidence = preventive_evidence(conn, member)
+        evidence = plan_evidence(conn, member, call["specialty"] or "primary care")
         invalidate(conn, call, clear_offers=True)
         version = call["request_version"] + 1
         conn.execute(

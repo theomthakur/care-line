@@ -48,6 +48,9 @@ def test_network_and_scope_are_checked_in_code(db):
     assert [p["id"] for p in result["providers"]] == ["P3", "P4"]
     assert result["evidence"][0]["id"] == "BASIC-PREV"
     with pytest.raises(DomainError, match="VISIT_TYPE_UNAVAILABLE"):
+        search_providers(db, call_id, "orthopedics", "10023")
+    # Basic plan, no referral on file: refused by policy, not by scope.
+    with pytest.raises(DomainError, match="REFERRAL_REQUIRED"):
         search_providers(db, call_id, "cardiology", "10023")
 
 

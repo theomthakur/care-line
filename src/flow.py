@@ -168,6 +168,12 @@ class Flow:
         if isinstance(res, str):
             return res
         if not res.get("ok"):
+            if res.get("error") == "REFERRAL_REQUIRED":
+                return line(
+                    res.get("speak", "Your plan needs a referral for that visit."),
+                    "If they want it, call create_followup with category policy_required. "
+                    "Don't promise coverage or search again for this specialty.",
+                )
             return line(res.get("speak", "I couldn't find a match."))
         if not res.get("providers"):
             return line(res.get("speak", "I couldn't find a doctor that matches."))

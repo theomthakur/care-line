@@ -47,7 +47,7 @@ def build_packet(
         lead = (
             f"{who}'s request: \u201c{need.strip()}\u201d "
             if need
-            else f"{who} needed help with a primary care visit. "
+            else f"{who} needed help with a {(call['specialty'] if call and call['specialty'] else 'primary care')} visit. "
         )
         summary = f"{lead}{who} {_WHAT.get(category, 'needs a person to follow up')}."
     names = [
@@ -65,12 +65,15 @@ def build_packet(
             f"Tried to verify identity ({call['verification_attempts']} attempts)"
         )
     if "providers_searched" in names:
+        kind = call["specialty"] if call and call["specialty"] else "primary care"
         tried.append(
-            f"Searched primary care near {zip_}"
-            if zip_
-            else "Searched primary care providers"
+            f"Searched {kind} near {zip_}" if zip_ else f"Searched {kind} providers"
         )
         tried.append("Explained eligible and excluded providers")
+    if "referral_required" in names:
+        tried.append(
+            f"Plan needs a referral for {call['specialty'] if call else 'a specialist'}; none valid on file"
+        )
     if "availability_offered" in names:
         tried.append("Offered open times")
     if "slot_taken" in names:

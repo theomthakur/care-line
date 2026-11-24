@@ -363,3 +363,38 @@ async def test_no_tomorrow_slot_offers_next_actual_availability(
     answer = await f.find_slots("P2", "tomorrow", "")
     assert "S-P2-1112-0930" in answer
     assert "Thursday" in answer
+
+
+async def test_specialist_search_books_a_dermatologist(be: FakeBackend) -> None:
+    f = Flow(be)
+    await f.start("room-derm")
+    await f.verify("four four one seven", "April")
+    out = await f.find_providers("dermatologist", "10023")
+    assert "doesn't need a referral" in out and "Dr. Aaron Shah" in out
+    assert "Dr. Omar Haddad" not in out
+    slots = await f.find_slots("P8", "earliest available")
+    assert "S-P8-" in slots
+
+
+async def test_referral_refusal_offers_a_policy_followup() -> None:
+    class Refusing(FakeBackend):
+        async def providers(self, call_id, specialty, zip_code):
+            return {
+                "ok": False,
+                "error": "REFERRAL_REQUIRED",
+                "speak": "Your plan needs a referral from your primary care doctor before a cardiology visit.",
+            }
+
+    f = Flow(Refusing(now=MONDAY_NOON))
+    await f.start("room-ref")
+    await f.verify("four four one seven", "April")
+    out = await f.find_providers("cardiology", "10023")
+    assert "needs a referral" in out and "policy_required" in out
+
+
+async def test_unsupported_specialty_is_refused_kindly(be: FakeBackend) -> None:
+    f = Flow(be)
+    await f.start("room-ortho")
+    await f.verify("four four one seven", "April")
+    out = await f.find_providers("orthopedics", "10023")
+    assert "cardiology and dermatology" in out

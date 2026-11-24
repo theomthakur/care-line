@@ -92,6 +92,19 @@ def availability(db, call_id, date_from, date_to, part_of_day):
             or end_day.isoformat() < member["coverage_start"]
         ):
             require_coverage(member, start_day)
+        specialist = call["specialty"] not in (None, "primary care")
+        referral_ok = {}
+
+        def referral_valid(day):
+            # A referral can expire inside the search window: only offer days it covers.
+            if day not in referral_ok:
+                from .referrals import eligibility
+
+                referral_ok[day] = eligibility(conn, member, call["specialty"], day)[
+                    "eligible"
+                ]
+            return referral_ok[day]
+
         offered = []
         for slot in conn.execute(
             "SELECT * FROM slots WHERE provider_id=? AND state='open' ORDER BY starts_at,id",
@@ -108,6 +121,8 @@ def availability(db, call_id, date_from, date_to, part_of_day):
                 or slot["modality"] != "in_person"
                 or slot["visit_type"] != "new_patient"
             ):
+                continue
+            if specialist and not referral_valid(local.date()):
                 continue
             if (part_of_day == "morning" and local.hour >= 12) or (
                 part_of_day == "afternoon" and local.hour < 12

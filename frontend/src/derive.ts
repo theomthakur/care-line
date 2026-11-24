@@ -60,6 +60,7 @@ const EVENT_LABELS: Record<string, { label: string; tone: Tone }> = {
   verification_failed: { label: "Verification did not match", tone: "bad" },
   verification_locked: { label: "Verification locked after 3 attempts", tone: "bad" },
   providers_searched: { label: "In-network providers searched", tone: "info" },
+  referral_required: { label: "Specialist visit needs a referral. None valid on file", tone: "warn" },
   provider_selected: { label: "Provider selected", tone: "info" },
   availability_offered: { label: "Open times offered", tone: "info" },
   slot_selected: { label: "Caller chose a time", tone: "info" },

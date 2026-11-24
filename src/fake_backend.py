@@ -57,6 +57,44 @@ PROVIDERS = {
         "phone": "212-555-0104",
     },
 }
+# Specialists: Gold (METRO) members need no referral, so the fake books them directly.
+PROVIDERS.update(
+    {
+        "P7": {
+            "name": "Dr. Elena Cruz",
+            "zip": "10024",
+            "nets": {"METRO"},
+            "new": True,
+            "phone": "212-555-0107",
+            "specialty": "cardiology",
+        },
+        "P8": {
+            "name": "Dr. Aaron Shah",
+            "zip": "10023",
+            "nets": {"METRO", "VALUE"},
+            "new": True,
+            "phone": "212-555-0108",
+            "specialty": "dermatology",
+        },
+    }
+)
+SPECIALTY_ALIASES = {
+    "primary care": "primary care",
+    "primary care doctor": "primary care",
+    "pcp": "primary care",
+    "family doctor": "primary care",
+    "cardiology": "cardiology",
+    "cardiologist": "cardiology",
+    "heart doctor": "cardiology",
+    "dermatology": "dermatology",
+    "dermatologist": "dermatology",
+    "skin doctor": "dermatology",
+}
+REFERRAL = {
+    "id": "GOLD-REF",
+    "title": "Referrals",
+    "text": "Gold members do not need a referral to see an in-network specialist.",
+}
 NEAREST = {
     "10019": ["10019", "10023", "10024"],
     "10023": ["10023", "10024", "10019"],
@@ -163,6 +201,10 @@ class FakeBackend:
             self._add("P2", fri, t)
         self._add("P1", thu, "10:00")
         self._add("P4", wed, "13:00")
+        # Specialists
+        self._add("P8", thu, "13:00")
+        self._add("P8", fri, "11:00")
+        self._add("P7", wed, "15:30")
 
     def take_slot(self, slot_id: str) -> None:
         """Demo button: another caller takes this slot."""
@@ -228,16 +270,12 @@ class FakeBackend:
                 "error": "VERIFICATION_REQUIRED",
                 "speak": "I'll need to verify you first.",
             }
-        if specialty.strip().lower() not in {
-            "primary care",
-            "primary care doctor",
-            "pcp",
-            "family doctor",
-        }:
+        wanted = SPECIALTY_ALIASES.get(specialty.strip().lower())
+        if wanted is None:
             return {
                 "ok": False,
-                "error": "NO_MATCH",
-                "speak": "This version only books primary care for new patients. I can file a request for our team.",
+                "error": "VISIT_TYPE_UNAVAILABLE",
+                "speak": "I can book primary care, cardiology and dermatology visits. I can file a request for anything else.",
             }
         order = NEAREST.get(zip_code.strip())
         if not order:
@@ -252,6 +290,8 @@ class FakeBackend:
             PROVIDERS.items(),
             key=lambda kv: order.index(kv[1]["zip"]) if kv[1]["zip"] in order else 9,
         ):
+            if p.get("specialty", "primary care") != wanted:
+                continue
             if net not in p["nets"]:
                 out.append({"id": pid, "name": p["name"], "reason": "out of network"})
             elif not p["new"]:
@@ -268,15 +308,24 @@ class FakeBackend:
                 )
         ok = ok[:3]
         c["draft"] = None
+        c["specialty"] = wanted
         c["found"] = {p["id"] for p in ok}
         if not ok:
             return {
                 "ok": False,
                 "error": "NO_MATCH",
-                "speak": "I couldn't find an in-network primary care doctor taking new patients there.",
+                "speak": f"I couldn't find an in-network {wanted} doctor taking new patients there.",
                 "excluded": out,
             }
         names = " or ".join(p["name"] for p in ok[:2])
+        if wanted != "primary care":
+            return {
+                "ok": True,
+                "providers": ok,
+                "excluded": out,
+                "evidence": [REFERRAL],
+                "speak": f"Your plan doesn't need a referral for that. Near {zip_code}, I found {names}, in your network and taking new patients.",
+            }
         return {
             "ok": True,
             "providers": ok,
@@ -293,6 +342,13 @@ class FakeBackend:
                 "speak": "I don't have that doctor in these results.",
             }
         c["selected"] = provider_id
+        if c.get("specialty", "primary care") != "primary care":
+            return {
+                "ok": True,
+                "evidence": [REFERRAL],
+                "phone": PROVIDERS[provider_id]["phone"],
+                "speak": f"Good choice, {PROVIDERS[provider_id]['name']}. What day works for you?",
+            }
         return {
             "ok": True,
             "evidence": [PREVENTIVE],

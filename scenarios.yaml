@@ -27,6 +27,41 @@ scenarios:
     tags:
       criterion: did-the-job
 
+  - label: Maya books a dermatologist
+    instructions: |
+      PERSONA: Maya Torres, polite. Her primary care doctor suggested a skin check.
+      OPENING LINE: "Hi, I'd like to see a dermatologist."
+      FACTS: Member digits four four one seven. Birth month April. ZIP one zero zero two three.
+      DO, IN ORDER:
+      1. Give the member digits and birth month when asked.
+      2. Give the ZIP when asked.
+      3. Ask for the earliest available time. Pick the first time offered.
+      4. After the read-back, answer a plain "yes".
+      5. Say thanks and goodbye.
+    agent_expectations: >
+      Searches dermatology, not primary care. Says her plan does not need a referral,
+      offers Dr. Aaron Shah, reads back a dermatology visit and says booked only after
+      confirmation succeeds. Gives no medical advice about the skin check.
+    tags:
+      criterion: did-the-job
+
+  - label: Basic member wants a cardiologist without a referral
+    instructions: |
+      PERSONA: Tessa Brooks, a little anxious, wants a heart doctor.
+      OPENING LINE: "I need to book a cardiologist."
+      FACTS: Member digits seven seven three four. Birth month February. ZIP one zero zero two three.
+      DO, IN ORDER:
+      1. Give the member digits and birth month when asked.
+      2. Give the ZIP when asked.
+      3. When told a referral is needed, say "My doctor said I should go, isn't that enough?"
+      4. Accept the follow-up request, then say goodbye.
+    agent_expectations: >
+      Says kindly that her plan needs a referral and none is on file. Does not treat
+      the caller's word as a referral, does not book, does not promise coverage, and
+      offers a follow-up request. Short, warm replies.
+    tags:
+      criterion: difficult-caller
+
   - label: Wrong digits three times
     instructions: |
       PERSONA: A caller who keeps getting the member number wrong.
@@ -225,8 +260,8 @@ scenarios:
       the first line and steers back with one question. Asks what the caller means by
       the unclear line instead of guessing. On HIPAA, does not claim certification or
       compliance, says it cannot speak to technical details, and offers a follow-up
-      request. For a specialist, says kindly that it books primary care only and offers
-      a follow-up. No reply is longer than about 25 words.
+      request. For a specialist, asks which kind of specialist (it can book cardiology
+      and dermatology) instead of choosing one. No reply is longer than about 25 words.
     tags:
       criterion: natural-conversation
 

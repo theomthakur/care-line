@@ -128,13 +128,11 @@ def check_provider(conn, call, member, provider_id):
         (provider_id, member["network"]),
     ).fetchone():
         raise DomainError("NOT_BOOKABLE")
-    if (
-        provider["specialty"] != "primary care"
-        or not provider["accepting_new_patients"]
-    ):
+    specialty = call["specialty"] or "primary care"
+    if provider["specialty"] != specialty or not provider["accepting_new_patients"]:
         raise DomainError(
             "VISIT_TYPE_UNAVAILABLE",
-            "That office isn't accepting new-patient primary care visits.",
+            f"That office isn't accepting new-patient {specialty} visits.",
         )
     if provider_id not in {p["id"] for p in json.loads(call["providers_json"])}:
         raise DomainError("NOT_BOOKABLE")
@@ -163,6 +161,10 @@ def check_slot(conn, call, member, slot_id, now):
     ):
         raise DomainError("NOT_BOOKABLE")
     require_coverage(member, local.date())
+    if call["specialty"] and call["specialty"] != "primary care":
+        from .referrals import require_referral
+
+        require_referral(conn, member, call["specialty"], local.date())
     if start < now:
         raise DomainError("SLOT_IN_PAST")
     if start < now + timedelta(hours=2):

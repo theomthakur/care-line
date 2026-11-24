@@ -17,7 +17,11 @@ ERRORS = {
     "INVALID_ZIP": (422, "Please give me a five-digit ZIP code."),
     "NO_MATCH": (
         404,
-        "I couldn't find an eligible primary care provider near that ZIP.",
+        "I couldn't find an eligible provider near that ZIP.",
+    ),
+    "REFERRAL_REQUIRED": (
+        403,
+        "Your plan needs a referral from your primary care doctor before that visit. I can file a follow-up request.",
     ),
     "NO_SUPPORTED_ANSWER": (
         422,
@@ -34,7 +38,7 @@ ERRORS = {
     ),
     "VISIT_TYPE_UNAVAILABLE": (
         422,
-        "I can book new-patient primary care visits only. That choice isn't available.",
+        "I can book new-patient primary care, cardiology and dermatology visits only. That choice isn't available.",
     ),
     "NO_AVAILABILITY": (
         404,

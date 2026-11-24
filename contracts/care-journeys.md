@@ -3,8 +3,41 @@
 Implemented November 6, 2026: SQLite schema v2, automatic migration, Pydantic
 extension models, provider/member fixtures, and an opt-in care-history dataset.
 
-**This is the data foundation. Specialist booking and rescheduling HTTP routes
-are not implemented by this change.** The mounted routes in `api.md` continue to
+## Update, November 23, 2026: specialist booking is live
+
+New-patient **cardiology and dermatology** booking now runs through the existing
+routes (`/providers`, `/select`, `/availability`, `/slot`, preview, armed, confirm).
+Rescheduling is still not implemented.
+
+- `POST /calls/{id}/providers` accepts `specialty` = `primary care`, `cardiology`
+  or `dermatology` (also "cardiologist", "heart doctor", "dermatologist", "skin
+  doctor"). Anything else is `VISIT_TYPE_UNAVAILABLE`.
+- Specialist searches return the plan's referral passage (`GOLD-REF`/`BASIC-REF`)
+  as evidence and a `referral` object (`ReferralEligibility`). Specialists are
+  offered nearest ZIP first, up to three, rather than only the three nearby ZIPs.
+- Referral policy lives in `backend/core/referrals.py`. Gold needs no referral.
+  Basic needs a **verified, non-revoked** referral for that specialty, valid on the
+  **visit's Eastern date**. A caller-reported recommendation never counts.
+- Refusal: `403 REFERRAL_REQUIRED` with `referral_status` (`missing`, `reported`,
+  `expired`, `revoked`) and a spoken line offering a follow-up. The search state
+  and plan passage persist, and a `referral_required` event is recorded.
+- The policy is rechecked when availability is listed (days the referral does
+  not cover are skipped), when a slot is chosen, at read-back/arming and at
+  confirm. A referral revoked before the caller's yes blocks the booking.
+- Confirmed specialist appointments store `referral_id`. The read-back says
+  "new-patient cardiology visit" (or dermatology).
+- Voice agent: prompt and tool now offer the three kinds of visit; a referral
+  refusal tells the model to offer a `policy_required` follow-up.
+- Demo data: base seed has no referrals, so Basic members are refused and Maya
+  (Gold) can book Dr. Aaron Shah (dermatology) or Dr. Elena Cruz (cardiology).
+  For a Basic member with a valid referral (Riley, cardiology, Dr. Nina Rao),
+  seed with `--care-journeys`.
+- Tests: `tests/core/test_specialty.py`, plus specialist cases in
+  `tests/agent/test_flow.py` and two scenarios in `scenarios.yaml` (not yet run
+  against LiveKit).
+
+**Original note (Nov 6):** This is the data foundation. Specialist booking (now done, see above) and rescheduling HTTP routes
+are not implemented by this change. The mounted routes in `api.md` continue to
 book primary care only. The route additions below are an integration proposal,
 not endpoints Om can call yet. Agent and dashboard code are unchanged.
 

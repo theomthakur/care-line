@@ -7,6 +7,7 @@ import secrets
 from datetime import timedelta
 
 from .common import (
+    EASTERN,
     TIMEZONE,
     check_slot,
     event,
@@ -156,7 +157,12 @@ def preview_booking(db, call_id):
         provider = conn.execute(
             "SELECT name FROM providers WHERE id=?", (slot["provider_id"],)
         ).fetchone()
-        read_back = f"{member['display_name']}, I have you for a new-patient visit, in person, with {provider['name']} on {spoken_time(slot['starts_at'])}. Shall I book it?"
+        kind = (
+            ""
+            if call["specialty"] in (None, "primary care")
+            else f" {call['specialty']}"
+        )
+        read_back = f"{member['display_name']}, I have you for a new-patient{kind} visit, in person, with {provider['name']} on {spoken_time(slot['starts_at'])}. Shall I book it?"
         token = secrets.token_urlsafe(32)
         user = latest_user(conn, call_id)
         conn.execute(
@@ -294,6 +300,15 @@ def confirm_booking(db, call_id, token):
                 invalidate(conn, call, clear_offers=True)
                 event(conn, call_id, "preview_invalidated", now)
                 raise DomainError(error, persist=True)
+        referral_id = None
+        if call["specialty"] not in (None, "primary care"):
+            from .referrals import require_referral
+
+            local_day = instant(slot["starts_at"]).astimezone(EASTERN).date()
+            referral = require_referral(
+                conn, get_member(conn, call), call["specialty"], local_day
+            )["referral"]
+            referral_id = referral["id"] if referral else None
         appointment_id = identifier("apt")
         while True:
             confirmation = f"MG-APT-{secrets.randbelow(1_000_000):06}"
@@ -307,7 +322,7 @@ def confirm_booking(db, call_id, token):
         )
         conn.execute("UPDATE drafts SET status='booked' WHERE id=?", (draft["id"],))
         conn.execute(
-            "INSERT INTO appointments(id,call_id,member_id,provider_id,slot_id,draft_id,confirmation,starts_at,ends_at,consent_turn_seq,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO appointments(id,call_id,member_id,provider_id,slot_id,draft_id,confirmation,starts_at,ends_at,consent_turn_seq,created_at,referral_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 appointment_id,
                 call_id,
@@ -320,6 +335,7 @@ def confirm_booking(db, call_id, token):
                 slot["ends_at"],
                 user["seq"],
                 utc(now),
+                referral_id,
             ),
         )
         event(conn, call_id, "appointment_booked", now)
